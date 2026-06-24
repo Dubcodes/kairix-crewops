@@ -245,6 +245,31 @@ class EquipmentCreate(BaseModel):
     status: str = "Available"
 
 
+class WorkshopRecordCreate(BaseModel):
+    title: str
+    event_id: str | None = None
+    instructor_id: str | None = None
+    region_id: str | None = None
+    notes: str | None = None
+
+
+class TrainingRecordCreate(BaseModel):
+    user_id: str
+    training_name: str
+    workshop_record_id: str | None = None
+    status: str = "Completed"
+    completed_at: datetime | None = None
+    valid_until: datetime | None = None
+    public_badge: str | None = None
+    private_notes: str | None = None
+
+
+class SkillCreate(BaseModel):
+    name: str
+    category: str | None = None
+    description: str | None = None
+
+
 class BudgetRequestCreate(BaseModel):
     title: str
     description: str | None = None
@@ -326,4 +351,3 @@ class AuditOut(BaseOut):
     sensitivity: str
     reauth_required: bool
     notification_sent: bool
-

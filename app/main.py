@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
 from .database import init_db
-from .routers import announcements, audit, auth, backups, calendar, equipment, files, finance, health, hr, messages, org, projects, setup, tasks, users, visitors
+from .routers import announcements, audit, auth, backups, calendar, equipment, files, finance, health, hr, messages, org, projects, setup, tasks, training, users, visitors
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name, version="0.1.0")
@@ -32,6 +32,7 @@ app.include_router(visitors.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(tasks.router, prefix="/api")
 app.include_router(calendar.router, prefix="/api")
+app.include_router(training.router, prefix="/api")
 app.include_router(equipment.router, prefix="/api")
 app.include_router(finance.router, prefix="/api")
 app.include_router(hr.router, prefix="/api")
