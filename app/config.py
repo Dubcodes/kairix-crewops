@@ -1,7 +1,6 @@
 from functools import lru_cache
-from typing import List
+import json
 
-from pydantic import field_validator
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,16 +13,18 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./crewops.db"
     upload_dir: str = "./uploads"
     backup_dir: str = "./backups"
-    cors_origins: List[str] = ["http://localhost:8088", "http://localhost:8000"]
+    cors_origins: str = "http://localhost:8088,http://localhost:8000"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def split_origins(cls, value):
-        if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
-        return value
+    @property
+    def cors_origin_list(self) -> list[str]:
+        value = self.cors_origins.strip()
+        if value.startswith("["):
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                return [str(origin).strip() for origin in parsed if str(origin).strip()]
+        return [origin.strip() for origin in value.split(",") if origin.strip()]
 
     @model_validator(mode="after")
     def validate_production_secrets(self):

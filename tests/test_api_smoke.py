@@ -1,11 +1,5 @@
 import os
-import sys
 import tempfile
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 db_path = os.path.join(tempfile.gettempdir(), "crewops-pytest.db")
 if os.path.exists(db_path):
