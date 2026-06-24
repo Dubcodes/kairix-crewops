@@ -60,6 +60,19 @@ button:hover {
   min-height: 100vh;
 }
 
+body.auth-locked #app {
+  display: block;
+}
+
+body.auth-locked .sidebar,
+body.auth-locked .topbar {
+  display: none;
+}
+
+body.auth-locked .shell {
+  min-height: 100vh;
+}
+
 .sidebar {
   width: 260px;
   flex: 0 0 260px;
@@ -291,6 +304,18 @@ h2 {
   background: #fbfcfb;
   min-width: 0;
   overflow: hidden;
+}
+
+.item-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item-button.selected {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .item strong {

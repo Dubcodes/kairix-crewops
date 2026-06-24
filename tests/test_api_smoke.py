@@ -39,6 +39,8 @@ def test_core_modules_are_reachable_and_audited():
         user_id = me.json()["id"]
 
         created = {}
+        unauth_task = client.post("/api/tasks", json={"title": "Should not save"})
+        assert unauth_task.status_code == 401
 
         def post(path, payload, request_headers=headers):
             response = client.post(path, headers=request_headers, json=payload)
@@ -65,6 +67,46 @@ def test_core_modules_are_reachable_and_audited():
         created["visitor"] = post("/api/visitors", {"name": "Visitor One", "email": "visitor@example.org"})
         created["project"] = post("/api/projects", {"title": "Short Film", "project_type_name": "Film"})
         created["task"] = post("/api/tasks", {"title": "Prepare call sheet", "assigned_to_id": created["member"]["id"]})
+        edited_task = client.patch(
+            f"/api/tasks/{created['task']['id']}",
+            headers=headers,
+            json={"title": "Prepare final call sheet", "status": "In Progress"},
+        )
+        assert edited_task.status_code == 200, edited_task.text
+        assert edited_task.json()["title"] == "Prepare final call sheet"
+        completed_task = client.patch(
+            f"/api/tasks/{created['task']['id']}/status",
+            headers=headers,
+            params={"status": "Complete"},
+        )
+        assert completed_task.status_code == 200, completed_task.text
+        login_member = client.post("/api/auth/login", data={"username": "member1", "password": "change-me-now"})
+        assert login_member.status_code == 200, login_member.text
+        member_headers = {"Authorization": f"Bearer {login_member.json()['access_token']}"}
+        assigned_user_update = client.patch(
+            f"/api/tasks/{created['task']['id']}",
+            headers=member_headers,
+            json={"status": "In Progress"},
+        )
+        assert assigned_user_update.status_code == 200, assigned_user_update.text
+        other_user = post(
+            "/api/users",
+            {
+                "username": "member2",
+                "email": "member2@example.org",
+                "display_name": "Member Two",
+                "password": "change-me-now",
+            },
+        )
+        login_other = client.post("/api/auth/login", data={"username": other_user["username"], "password": "change-me-now"})
+        assert login_other.status_code == 200, login_other.text
+        other_headers = {"Authorization": f"Bearer {login_other.json()['access_token']}"}
+        blocked_task_update = client.patch(
+            f"/api/tasks/{created['task']['id']}",
+            headers=other_headers,
+            json={"status": "Cancelled"},
+        )
+        assert blocked_task_update.status_code == 403
         created["event"] = post("/api/calendar/events", {"title": "Workshop", "starts_at": "2026-07-01T09:00:00+12:00"})
         created["attendance"] = client.post(
             f"/api/calendar/events/{created['event']['id']}/attendance",

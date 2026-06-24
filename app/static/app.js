@@ -5,6 +5,7 @@ const state = {
   activeModule: "dashboard",
   data: {},
   reauth: {},
+  selectedTaskId: null,
 };
 
 const moduleList = [
@@ -250,15 +251,48 @@ function toast(message) {
 }
 
 async function api(path, options = {}) {
-  const headers = options.headers || {};
+  const headers = { ...(options.headers || {}) };
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
   if (options.body && !(options.body instanceof FormData) && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
   const response = await fetch(`/api${path}`, { ...options, headers });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || response.statusText);
+    const apiError = new Error(error.detail || response.statusText);
+    apiError.status = response.status;
+    if (response.status === 401 && !options.allowUnauthenticated) {
+      resetAuth();
+    }
+    throw apiError;
   }
   return response.json();
+}
+
+function setAuthenticatedUi(isAuthenticated) {
+  document.body.classList.toggle("auth-locked", !isAuthenticated);
+  $("search").disabled = !isAuthenticated;
+  $("toggleSidebar").disabled = !isAuthenticated;
+  $("notificationButton").disabled = !isAuthenticated;
+  $("helpButton").disabled = !isAuthenticated;
+  $("settingsButton").disabled = !isAuthenticated;
+  $("avatar").disabled = !isAuthenticated;
+}
+
+function resetAuth() {
+  localStorage.removeItem("crewopsToken");
+  state.token = null;
+  state.me = null;
+  state.reauth = {};
+  state.selectedTaskId = null;
+  $("moduleContent").innerHTML = "";
+  $("moduleGrid").innerHTML = "";
+  setAuthenticatedUi(false);
+  show("loginView");
+}
+
+function requireSession() {
+  if (state.token && state.me) return true;
+  resetAuth();
+  return false;
 }
 
 function show(viewId) {
@@ -286,6 +320,14 @@ function formatDate(value) {
   return date.toLocaleString();
 }
 
+function formatDatetimeLocal(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const offsetMs = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
 function compactId(value) {
   return value ? `id ${String(value).slice(0, 8)}` : "";
 }
@@ -296,6 +338,15 @@ function tags(values) {
 
 function item(title, meta = "", extra = "") {
   return `<div class="item"><strong>${escapeHtml(title || "Untitled")}</strong><span>${escapeHtml(meta || "")}</span>${extra}</div>`;
+}
+
+function taskListItem(task) {
+  const selected = state.selectedTaskId === task.id ? " selected" : "";
+  const meta = [task.status, task.priority, formatDate(task.due_at), task.description].filter(Boolean).join(" · ");
+  return `<button type="button" class="item item-button${selected}" data-task-id="${escapeHtml(task.id)}">
+    <strong>${escapeHtml(task.title || "Untitled")}</strong>
+    <span>${escapeHtml(meta)}</span>
+  </button>`;
 }
 
 function renderEmpty(message) {
@@ -395,6 +446,63 @@ async function renderResourceModule(id) {
         </form>
       </section>
     </div>`;
+}
+
+async function renderTasksModule() {
+  const tasks = await api("/tasks?assigned_to_me=false").catch((error) => {
+    toast(error.message);
+    return [];
+  });
+  state.data.tasks = tasks;
+  if (state.selectedTaskId && !tasks.some((task) => task.id === state.selectedTaskId)) {
+    state.selectedTaskId = null;
+  }
+  const selectedTask = tasks.find((task) => task.id === state.selectedTaskId) || tasks[0] || null;
+  if (!state.selectedTaskId && selectedTask) state.selectedTaskId = selectedTask.id;
+
+  $("moduleContent").innerHTML = `
+    <div class="module-layout">
+      <section class="panel">
+        <div class="panel-title"><h2>Tasks</h2><button data-refresh-module="tasks">Refresh</button></div>
+        <div class="list module-records">
+          ${tasks.length ? tasks.map(taskListItem).join("") : renderEmpty("No tasks yet.")}
+        </div>
+      </section>
+      <section class="panel">
+        ${selectedTask ? renderTaskDetails(selectedTask) : `<div class="panel-title"><h2>Task details</h2></div>${renderEmpty("Select a task to edit it, or create a new one below.")}`}
+      </section>
+      <section class="panel wide">
+        <div class="panel-title"><h2>New task</h2></div>
+        ${renderTaskCreateForm()}
+      </section>
+    </div>`;
+}
+
+function renderTaskCreateForm() {
+  return `<form class="form-grid" data-create-endpoint="/tasks" data-module="tasks">
+    ${fieldHtml({ name: "title", label: "Title", required: true })}
+    ${fieldHtml({ name: "priority", label: "Priority", type: "select", options: ["Low", "Normal", "High", "Urgent"], value: "Normal" })}
+    ${fieldHtml({ name: "status", label: "Status", type: "select", options: ["To Do", "In Progress", "Waiting", "Complete", "Cancelled"], value: "To Do" })}
+    ${fieldHtml({ name: "due_at", label: "Due", type: "datetime-local" })}
+    ${fieldHtml({ name: "description", label: "Description", type: "textarea" })}
+    <button class="primary" type="submit">Create task</button>
+  </form>`;
+}
+
+function renderTaskDetails(task) {
+  const canComplete = task.status !== "Complete";
+  return `<div class="panel-title"><h2>Edit task</h2><span class="pill">${escapeHtml(task.status)}</span></div>
+    <form class="form-grid" data-update-endpoint="/tasks/${escapeHtml(task.id)}" data-module="tasks">
+      ${fieldHtml({ name: "title", label: "Title", required: true, value: task.title || "" })}
+      ${fieldHtml({ name: "priority", label: "Priority", type: "select", options: ["Low", "Normal", "High", "Urgent"], value: task.priority || "Normal" })}
+      ${fieldHtml({ name: "status", label: "Status", type: "select", options: ["To Do", "In Progress", "Waiting", "Complete", "Cancelled"], value: task.status || "To Do" })}
+      ${fieldHtml({ name: "due_at", label: "Due", type: "datetime-local", value: formatDatetimeLocal(task.due_at) })}
+      ${fieldHtml({ name: "description", label: "Description", type: "textarea", value: task.description || "" })}
+      <div class="actions">
+        <button class="primary" type="submit">Save task</button>
+        <button type="button" data-task-status-id="${escapeHtml(task.id)}" data-task-status="${canComplete ? "Complete" : "To Do"}">${canComplete ? "Mark complete" : "Reopen"}</button>
+      </div>
+    </form>`;
 }
 
 async function renderRegionsModule() {
@@ -721,10 +829,12 @@ function renderHelpModule() {
 }
 
 async function renderModule(id) {
+  if (!requireSession()) return;
   const module = moduleById[id] || moduleById.dashboard;
   setActiveNav(module.id);
   if (module.id === "dashboard") {
     await loadDashboard();
+    if (!state.me) return;
     show("dashboardView");
     return;
   }
@@ -734,7 +844,8 @@ async function renderModule(id) {
   $("moduleContent").innerHTML = renderEmpty("Loading...");
   show("moduleView");
 
-  if (module.id === "equipment") await renderEquipmentModule();
+  if (module.id === "tasks") await renderTasksModule();
+  else if (module.id === "equipment") await renderEquipmentModule();
   else if (module.id === "finance") await renderFinanceModule();
   else if (resourceModules[module.id]) await renderResourceModule(module.id);
   else if (module.id === "regions") await renderRegionsModule();
@@ -766,6 +877,7 @@ function renderModules(settings) {
 }
 
 async function loadDashboard() {
+  if (!requireSession()) return;
   const [settings, events, tasks, users] = await Promise.all([
     api("/org/settings").catch(() => ({})),
     api("/calendar/events").catch(() => []),
@@ -787,8 +899,9 @@ async function loadDashboard() {
 }
 
 async function boot() {
+  setAuthenticatedUi(false);
   renderNav();
-  const setup = await api("/setup/status");
+  const setup = await api("/setup/status", { allowUnauthenticated: true });
   if (!setup.setup_complete) {
     show("setupView");
     return;
@@ -799,6 +912,7 @@ async function boot() {
   }
   try {
     state.me = await api("/auth/me");
+    setAuthenticatedUi(true);
     $("welcome").textContent = `Welcome, ${state.me.display_name}`;
     $("avatar").textContent = state.me.display_name.slice(0, 1).toUpperCase();
     $("levelLabel").textContent = `Level ${state.me.level}`;
@@ -806,23 +920,22 @@ async function boot() {
     $("brandName").textContent = setup.organisation_name || "CrewOps";
     await renderModule(state.activeModule || "dashboard");
   } catch (error) {
-    localStorage.removeItem("crewopsToken");
-    state.token = null;
-    show("loginView");
+    resetAuth();
   }
 }
 
 $("toggleSidebar").addEventListener("click", () => $("sidebar").classList.toggle("collapsed"));
-$("refresh").addEventListener("click", () => loadDashboard().then(() => toast("Dashboard refreshed")).catch((error) => toast(error.message)));
+$("refresh").addEventListener("click", () => {
+  if (!requireSession()) return;
+  loadDashboard().then(() => toast("Dashboard refreshed")).catch((error) => toast(error.message));
+});
 $("settingsButton").addEventListener("click", () => renderModule("settings").catch((error) => toast(error.message)));
 $("helpButton").addEventListener("click", () => renderModule("help").catch((error) => toast(error.message)));
 $("notificationButton").addEventListener("click", () => renderModule("notifications").catch((error) => toast(error.message)));
 $("avatar").addEventListener("click", () => {
-  if (confirm("Log out of CrewOps?")) {
-    localStorage.removeItem("crewopsToken");
-    state.token = null;
-    show("loginView");
-  }
+  if (!requireSession()) return;
+  resetAuth();
+  toast("Signed out");
 });
 
 $("search").addEventListener("input", (event) => {
@@ -833,30 +946,51 @@ $("search").addEventListener("input", (event) => {
 });
 
 $("nav").addEventListener("click", (event) => {
+  if (!requireSession()) return;
   const button = event.target.closest("button[data-module]");
   if (!button) return;
   renderModule(button.dataset.module).catch((error) => toast(error.message));
 });
 
 $("moduleGrid").addEventListener("click", (event) => {
+  if (!requireSession()) return;
   const button = event.target.closest("button[data-module]");
   if (!button) return;
   renderModule(button.dataset.module).catch((error) => toast(error.message));
 });
 
 $("moduleContent").addEventListener("click", (event) => {
+  if (!requireSession()) return;
+  const taskButton = event.target.closest("button[data-task-id]");
+  if (taskButton) {
+    state.selectedTaskId = taskButton.dataset.taskId;
+    renderTasksModule().catch((error) => toast(error.message));
+    return;
+  }
+  const statusButton = event.target.closest("button[data-task-status-id]");
+  if (statusButton) {
+    api(`/tasks/${statusButton.dataset.taskStatusId}/status?status=${encodeURIComponent(statusButton.dataset.taskStatus)}`, { method: "PATCH" })
+      .then(() => {
+        toast(statusButton.dataset.taskStatus === "Complete" ? "Task completed" : "Task reopened");
+        return renderTasksModule();
+      })
+      .catch((error) => toast(error.message));
+    return;
+  }
   const button = event.target.closest("button[data-refresh-module]");
   if (!button) return;
   renderModule(button.dataset.refreshModule).catch((error) => toast(error.message));
 });
 
 $("moduleActions").addEventListener("click", (event) => {
+  if (!requireSession()) return;
   const button = event.target.closest("button[data-refresh-module]");
   if (!button) return;
   renderModule(button.dataset.refreshModule).catch((error) => toast(error.message));
 });
 
 $("moduleContent").addEventListener("submit", async (event) => {
+  if (!requireSession()) return;
   const form = event.target.closest("form");
   if (!form) return;
   event.preventDefault();
@@ -886,7 +1020,10 @@ $("moduleContent").addEventListener("submit", async (event) => {
     Object.assign(options, sensitiveOptions(form.dataset.module));
   }
   try {
-    await api(endpoint, options);
+    const saved = await api(endpoint, options);
+    if (form.dataset.module === "tasks" && saved?.id) {
+      state.selectedTaskId = saved.id;
+    }
     toast("Saved");
     form.reset();
     await renderModule(form.dataset.module || state.activeModule);
@@ -935,18 +1072,15 @@ $("loginForm").addEventListener("submit", async (event) => {
 });
 
 $("quickTask").addEventListener("click", async () => {
-  const title = prompt("Task title");
-  if (!title) return;
-  await api("/tasks", { method: "POST", body: JSON.stringify({ title }) });
-  await loadDashboard();
+  if (!requireSession()) return;
+  await renderModule("tasks");
+  $("moduleContent").querySelector('form[data-create-endpoint="/tasks"] input[name="title"]')?.focus();
 });
 
 $("quickEvent").addEventListener("click", async () => {
-  const title = prompt("Event title");
-  if (!title) return;
-  const starts_at = new Date(Date.now() + 86400000).toISOString();
-  await api("/calendar/events", { method: "POST", body: JSON.stringify({ title, starts_at }) });
-  await loadDashboard();
+  if (!requireSession()) return;
+  await renderModule("calendar");
+  $("moduleContent").querySelector('form[data-create-endpoint="/calendar/events"] input[name="title"]')?.focus();
 });
 
 boot().catch((error) => toast(error.message));

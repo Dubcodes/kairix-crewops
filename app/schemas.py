@@ -194,6 +194,22 @@ class TaskCreate(BaseModel):
     checklist: list[Any] = Field(default_factory=list)
 
 
+class TaskUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    assigned_to_id: str | None = None
+    due_at: datetime | None = None
+    priority: str | None = None
+    status: str | None = None
+    attached_entity_type: str | None = None
+    attached_entity_id: str | None = None
+    visibility: str | None = None
+    sensitivity: str | None = None
+    xp_value: int | None = None
+    requires_approval: bool | None = None
+    checklist: list[Any] | None = None
+
+
 class TaskOut(BaseOut):
     title: str
     description: str | None
@@ -204,6 +220,9 @@ class TaskOut(BaseOut):
     attached_entity_type: str | None
     attached_entity_id: str | None
     xp_value: int
+    created_by_id: str | None
+    updated_by_id: str | None
+    completed_by_id: str | None
 
 
 class EventCreate(BaseModel):
