@@ -5,6 +5,7 @@ from .. import models, schemas
 from ..database import get_db
 from ..deps import require_active_user
 from ..services.audit import audit_log
+from ..services.serialization import model_to_dict
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
 
@@ -37,5 +38,5 @@ def record_attendance(event_id: str, user_id: str | None = None, visitor_id: str
     db.flush()
     audit_log(db, action="attendance.record", target_type="EventAttendance", target_id=attendance.id, actor=current_user, new_value={"event_id": event_id, "user_id": user_id, "visitor_id": visitor_id, "status": status}, request=request)
     db.commit()
-    return attendance
-
+    db.refresh(attendance)
+    return model_to_dict(attendance)

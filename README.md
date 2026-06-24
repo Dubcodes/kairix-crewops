@@ -25,6 +25,15 @@ Cloudflare Tunnel is intentionally not included in this stack. Run it as a separ
 docker compose up --build
 ```
 
+## Test locally
+
+```powershell
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+The smoke test creates a throwaway SQLite database and verifies the setup flow plus the main create/list APIs across users, visitors, regions, projects, tasks, calendar, attendance, training, equipment, finance, HR, messages, announcements, files, XP, notifications, forms, integrations, audit, and backups.
+
 ## Default service URLs
 
 - App: `http://localhost:8088`
@@ -44,4 +53,3 @@ If you expose the app through Cloudflare Tunnel for testing, create a separate t
 - Keep PostgreSQL private to the Docker network.
 - Sensitive HR and finance API routes require permission tags and create audit entries.
 - The app stores only file metadata in the database; uploaded file storage is prepared as a local volume for follow-up implementation.
-

@@ -6,6 +6,7 @@ from ..database import get_db
 from ..deps import require_active_user
 from ..permissions import can_access_finance, can_write_finance
 from ..services.audit import audit_log
+from ..services.serialization import model_to_dict, models_to_dicts
 
 router = APIRouter(prefix="/finance", tags=["finance"])
 
@@ -14,7 +15,7 @@ router = APIRouter(prefix="/finance", tags=["finance"])
 def list_budget_requests(db: Session = Depends(get_db), current_user: models.User = Depends(require_active_user)):
     if not can_access_finance(current_user):
         raise HTTPException(status_code=403, detail="Finance or governance access required")
-    return db.query(models.BudgetRequest).order_by(models.BudgetRequest.created_at.desc()).limit(100).all()
+    return models_to_dicts(db.query(models.BudgetRequest).order_by(models.BudgetRequest.created_at.desc()).limit(100).all())
 
 
 @router.post("/budget-requests")
@@ -24,7 +25,8 @@ def create_budget_request(payload: schemas.BudgetRequestCreate, request: Request
     db.flush()
     audit_log(db, action="budget_request.create", target_type="BudgetRequest", target_id=budget.id, actor=current_user, new_value=payload.model_dump(), sensitivity="Finance-sensitive", request=request)
     db.commit()
-    return budget
+    db.refresh(budget)
+    return model_to_dict(budget)
 
 
 @router.post("/budget-requests/{budget_id}/approve")
@@ -47,5 +49,17 @@ def approve_budget_request(budget_id: str, notes: str | None = None, request: Re
 def list_finance_records(db: Session = Depends(get_db), current_user: models.User = Depends(require_active_user)):
     if not can_access_finance(current_user):
         raise HTTPException(status_code=403, detail="Finance or governance access required")
-    return db.query(models.FinanceRecord).order_by(models.FinanceRecord.created_at.desc()).limit(100).all()
+    return models_to_dicts(db.query(models.FinanceRecord).order_by(models.FinanceRecord.created_at.desc()).limit(100).all())
 
+
+@router.post("/records")
+def create_finance_record(payload: schemas.FinanceRecordCreate, request: Request, db: Session = Depends(get_db), current_user: models.User = Depends(require_active_user)):
+    if not can_write_finance(current_user):
+        raise HTTPException(status_code=403, detail="Finance write access required")
+    record = models.FinanceRecord(**payload.model_dump(), created_by_id=current_user.id, updated_by_id=current_user.id)
+    db.add(record)
+    db.flush()
+    audit_log(db, action="finance_record.create", target_type="FinanceRecord", target_id=record.id, actor=current_user, new_value=payload.model_dump(), sensitivity="Finance-sensitive", request=request)
+    db.commit()
+    db.refresh(record)
+    return model_to_dict(record)

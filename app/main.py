@@ -1,4 +1,5 @@
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,10 +8,20 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
 from .database import init_db
-from .routers import announcements, audit, auth, backups, calendar, equipment, files, finance, health, hr, messages, org, projects, setup, tasks, training, users, visitors
+from .routers import announcements, audit, auth, backups, calendar, equipment, files, finance, forms, health, hr, integrations, messages, notifications, org, projects, setup, tasks, training, users, visitors, xp
 
 settings = get_settings()
-app = FastAPI(title=settings.app_name, version="0.1.0")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
+    Path(settings.backup_dir).mkdir(parents=True, exist_ok=True)
+    yield
+
+
+app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -39,15 +50,12 @@ app.include_router(hr.router, prefix="/api")
 app.include_router(files.router, prefix="/api")
 app.include_router(messages.router, prefix="/api")
 app.include_router(announcements.router, prefix="/api")
+app.include_router(xp.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")
+app.include_router(forms.router, prefix="/api")
+app.include_router(integrations.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(backups.router, prefix="/api")
-
-
-@app.on_event("startup")
-def on_startup() -> None:
-    init_db()
-    Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
-    Path(settings.backup_dir).mkdir(parents=True, exist_ok=True)
 
 
 @app.get("/")

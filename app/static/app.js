@@ -19,8 +19,12 @@ const moduleList = [
   { id: "finance", label: "Finance", icon: "$", summary: "Budget requests, approvals, and finance-sensitive records." },
   { id: "hr", label: "HR", icon: "◈", summary: "Compartmentalised HR notes and sensitive people records." },
   { id: "messages", label: "Messages", icon: "✉", summary: "Internal threads for people, projects, events, and teams." },
+  { id: "notifications", label: "Notifications", icon: "●", summary: "Personal alerts and official system notifications." },
   { id: "announcements", label: "Announcements", icon: "◍", summary: "Noticeboard posts, newsletters, and important updates." },
+  { id: "xp", label: "XP", icon: "↗", summary: "Experience awards connected to attendance, tasks, projects, and training." },
+  { id: "forms", label: "Forms", icon: "▥", summary: "Form definitions and submissions for operational workflows." },
   { id: "files", label: "Files/Documents", icon: "□", summary: "Local file metadata and compact external links." },
+  { id: "integrations", label: "Integrations", icon: "⇄", summary: "Future connections to Google, Xero, email, files, and automation." },
   { id: "audit", label: "Reports/Audit", icon: "≡", summary: "Audit history and oversight records." },
   { id: "settings", label: "Settings", icon: "⚙", summary: "Organisation branding, defaults, modules, and thresholds." },
   { id: "admin", label: "Admin/System", icon: "⌬", summary: "Health, backups, permissions, and system operations." },
@@ -29,9 +33,13 @@ const moduleList = [
 
 const moduleById = Object.fromEntries(moduleList.map((module) => [module.id, module]));
 const moduleAliases = {
+  notifications: ["notifications"],
+  xp: ["experience", "xp_records"],
+  forms: ["forms", "form_definitions"],
   regions: ["teams_regions", "teams/regions"],
   training: ["workshops_training", "workshops/training"],
   files: ["files_documents", "files/documents"],
+  integrations: ["integrations", "integration_connections"],
   audit: ["reports_audit", "reports/audit"],
   admin: ["admin_system", "admin/system"],
 };
@@ -141,6 +149,38 @@ const resourceModules = {
       { name: "description", label: "Reason / description", type: "textarea" },
     ],
     render: (row) => item(row.title, [`${row.currency || "NZD"} ${row.amount}`, row.status, row.description].filter(Boolean).join(" · ")),
+  },
+  notifications: {
+    endpoint: "/notifications",
+    createEndpoint: "/notifications",
+    listTitle: "My notifications",
+    createTitle: "New notification",
+    empty: "No notifications yet.",
+    preload: ["users"],
+    fields: [
+      { name: "user_id", label: "Recipient", type: "user-select", required: true },
+      { name: "title", label: "Title", required: true },
+      { name: "notification_type", label: "Type", value: "general" },
+      { name: "target_url", label: "Target URL" },
+      { name: "body", label: "Body", type: "textarea" },
+    ],
+    render: (row) => item(row.title, [row.notification_type, row.read_at ? "Read" : "Unread", row.body].filter(Boolean).join(" · ")),
+  },
+  xp: {
+    endpoint: "/xp/records",
+    createEndpoint: "/xp/records",
+    listTitle: "XP records",
+    createTitle: "Award XP",
+    empty: "No XP records yet.",
+    preload: ["users"],
+    fields: [
+      { name: "user_id", label: "Person", type: "user-select", required: true },
+      { name: "amount", label: "Amount", type: "number", required: true },
+      { name: "reason", label: "Reason", required: true },
+      { name: "source_entity_type", label: "Source entity type" },
+      { name: "source_entity_id", label: "Source entity id" },
+    ],
+    render: (row) => item(row.reason, [`${row.amount} XP`, compactId(row.user_id), row.source_entity_type].filter(Boolean).join(" · ")),
   },
   hr: {
     endpoint: "/hr/records?reason=Routine%20HR%20module%20review",
@@ -395,6 +435,77 @@ async function renderTrainingModule() {
     </div>`;
 }
 
+async function renderEquipmentModule() {
+  const [items, loans] = await Promise.all([api("/equipment/items").catch(() => []), api("/equipment/loans").catch(() => [])]);
+  $("moduleContent").innerHTML = `
+    <div class="module-layout">
+      <section class="panel">
+        <div class="panel-title"><h2>Equipment</h2><button data-refresh-module="equipment">Refresh</button></div>
+        <div class="list">${items.length ? items.map((row) => item(row.name, [row.category, row.status, row.condition, row.storage_location].filter(Boolean).join(" · "))).join("") : renderEmpty("No equipment items yet.")}</div>
+      </section>
+      <section class="panel">
+        <div class="panel-title"><h2>New equipment item</h2></div>
+        <form class="form-grid" data-create-endpoint="/equipment/items" data-module="equipment">
+          ${fieldHtml({ name: "name", label: "Name", required: true })}
+          ${fieldHtml({ name: "category", label: "Category", value: "General" })}
+          ${fieldHtml({ name: "condition", label: "Condition", value: "Good" })}
+          ${fieldHtml({ name: "storage_location", label: "Storage location" })}
+          ${fieldHtml({ name: "description", label: "Description", type: "textarea" })}
+          <button class="primary" type="submit">Create item</button>
+        </form>
+      </section>
+      <section class="panel">
+        <div class="panel-title"><h2>Loan requests</h2></div>
+        <div class="list">${loans.length ? loans.map((row) => item(row.status, [compactId(row.equipment_item_id), formatDate(row.starts_at), formatDate(row.ends_at)].filter(Boolean).join(" · "))).join("") : renderEmpty("No loan requests yet.")}</div>
+      </section>
+      <section class="panel">
+        <div class="panel-title"><h2>New loan request</h2></div>
+        ${items.length ? `<form class="form-grid" data-create-endpoint="/equipment/loans" data-module="equipment">
+          <label>Equipment item<select name="equipment_item_id" required>${items.map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.name)}</option>`).join("")}</select></label>
+          ${fieldHtml({ name: "starts_at", label: "Starts", type: "datetime-local" })}
+          ${fieldHtml({ name: "ends_at", label: "Ends", type: "datetime-local" })}
+          ${fieldHtml({ name: "condition_out", label: "Condition out", type: "textarea" })}
+          <button class="primary" type="submit">Request loan</button>
+        </form>` : renderEmpty("Create an equipment item before requesting a loan.")}
+      </section>
+    </div>`;
+}
+
+async function renderFinanceModule() {
+  const [budgets, records] = await Promise.all([api("/finance/budget-requests").catch(() => []), api("/finance/records").catch(() => [])]);
+  $("moduleContent").innerHTML = `
+    <div class="module-layout">
+      <section class="panel">
+        <div class="panel-title"><h2>Budget requests</h2><button data-refresh-module="finance">Refresh</button></div>
+        <div class="list">${budgets.length ? budgets.map((row) => item(row.title, [`${row.currency || "NZD"} ${row.amount}`, row.status, row.description].filter(Boolean).join(" · "))).join("") : renderEmpty("No budget requests yet.")}</div>
+      </section>
+      <section class="panel">
+        <div class="panel-title"><h2>New budget request</h2></div>
+        <form class="form-grid" data-create-endpoint="/finance/budget-requests" data-module="finance">
+          ${fieldHtml({ name: "title", label: "Title", required: true })}
+          ${fieldHtml({ name: "amount", label: "Amount", type: "number", step: "0.01", required: true })}
+          ${fieldHtml({ name: "currency", label: "Currency", value: "NZD" })}
+          ${fieldHtml({ name: "description", label: "Description", type: "textarea" })}
+          <button class="primary" type="submit">Submit request</button>
+        </form>
+      </section>
+      <section class="panel">
+        <div class="panel-title"><h2>Finance records</h2></div>
+        <div class="list">${records.length ? records.map((row) => item(row.title, [`${row.currency || "NZD"} ${row.amount}`, row.record_type, row.status].filter(Boolean).join(" · "))).join("") : renderEmpty("No finance records yet.")}</div>
+      </section>
+      <section class="panel">
+        <div class="panel-title"><h2>New finance record</h2></div>
+        <form class="form-grid" data-create-endpoint="/finance/records" data-module="finance">
+          ${fieldHtml({ name: "title", label: "Title", required: true })}
+          ${fieldHtml({ name: "record_type", label: "Record type", value: "Expense" })}
+          ${fieldHtml({ name: "amount", label: "Amount", type: "number", step: "0.01", required: true })}
+          ${fieldHtml({ name: "currency", label: "Currency", value: "NZD" })}
+          <button class="primary" type="submit">Create finance record</button>
+        </form>
+      </section>
+    </div>`;
+}
+
 async function renderFilesModule() {
   const [files, links] = await Promise.all([api("/files/records").catch(() => []), api("/files/links").catch(() => [])]);
   $("moduleContent").innerHTML = `
@@ -424,6 +535,54 @@ async function renderFilesModule() {
           ${fieldHtml({ name: "url", label: "URL", required: true })}
           ${fieldHtml({ name: "provider", label: "Provider", value: "external" })}
           <button class="primary" type="submit">Create link</button>
+        </form>
+      </section>
+    </div>`;
+}
+
+async function renderFormsModule() {
+  const [definitions, submissions] = await Promise.all([api("/forms/definitions").catch(() => []), api("/forms/submissions").catch(() => [])]);
+  $("moduleContent").innerHTML = `
+    <div class="module-layout">
+      <section class="panel">
+        <div class="panel-title"><h2>Form definitions</h2><button data-refresh-module="forms">Refresh</button></div>
+        <div class="list">${definitions.length ? definitions.map((row) => item(row.name, [row.form_type, row.status, row.description].filter(Boolean).join(" · "))).join("") : renderEmpty("No form definitions yet.")}</div>
+      </section>
+      <section class="panel">
+        <div class="panel-title"><h2>New form definition</h2></div>
+        <form class="form-grid" data-create-endpoint="/forms/definitions" data-module="forms">
+          ${fieldHtml({ name: "name", label: "Name", required: true })}
+          ${fieldHtml({ name: "form_type", label: "Form type", value: "general" })}
+          ${fieldHtml({ name: "status", label: "Status", value: "Draft" })}
+          ${fieldHtml({ name: "description", label: "Description", type: "textarea" })}
+          <button class="primary" type="submit">Create form</button>
+        </form>
+      </section>
+      <section class="panel wide">
+        <div class="panel-title"><h2>Submissions</h2></div>
+        <div class="list">${submissions.length ? submissions.map((row) => item(row.status, [compactId(row.form_definition_id), row.attached_entity_type].filter(Boolean).join(" · "))).join("") : renderEmpty("No form submissions yet.")}</div>
+      </section>
+    </div>`;
+}
+
+async function renderIntegrationsModule() {
+  const connections = await api("/integrations/connections").catch((error) => {
+    toast(error.message);
+    return [];
+  });
+  $("moduleContent").innerHTML = `
+    <div class="module-layout">
+      <section class="panel">
+        <div class="panel-title"><h2>Connections</h2><button data-refresh-module="integrations">Refresh</button></div>
+        <div class="list">${connections.length ? connections.map((row) => item(row.display_name, [row.provider, row.status].filter(Boolean).join(" · "))).join("") : renderEmpty("No integration connections yet.")}</div>
+      </section>
+      <section class="panel">
+        <div class="panel-title"><h2>New planned connection</h2></div>
+        <form class="form-grid" data-create-endpoint="/integrations/connections" data-module="integrations">
+          ${fieldHtml({ name: "provider", label: "Provider", required: true })}
+          ${fieldHtml({ name: "display_name", label: "Display name", required: true })}
+          ${fieldHtml({ name: "status", label: "Status", value: "Planned" })}
+          <button class="primary" type="submit">Record connection</button>
         </form>
       </section>
     </div>`;
@@ -507,7 +666,7 @@ function renderHelpModule() {
         ${item("Broad but shallow", "Each module starts with core create/list workflows and audited API records.")}
         ${item("Sensitive areas", "HR and finance routes are permission-checked and create audit records.")}
         ${item("Portainer deployment", "Deploy from the public GitHub repository and keep secrets in stack environment variables.")}
-        ${item("Next build pass", "The next layer should add edit/detail screens, file upload streams, scoped permissions, and richer approval workflows.")}
+        ${item("Stable v1", "The system has reachable create/list workflows across the core modules, with audit logging on operational changes.")}
       </div>
     </section>`;
 }
@@ -526,9 +685,13 @@ async function renderModule(id) {
   $("moduleContent").innerHTML = renderEmpty("Loading...");
   show("moduleView");
 
-  if (resourceModules[module.id]) await renderResourceModule(module.id);
+  if (module.id === "equipment") await renderEquipmentModule();
+  else if (module.id === "finance") await renderFinanceModule();
+  else if (resourceModules[module.id]) await renderResourceModule(module.id);
   else if (module.id === "regions") await renderRegionsModule();
   else if (module.id === "training") await renderTrainingModule();
+  else if (module.id === "forms") await renderFormsModule();
+  else if (module.id === "integrations") await renderIntegrationsModule();
   else if (module.id === "files") await renderFilesModule();
   else if (module.id === "audit") await renderAuditModule();
   else if (module.id === "settings") await renderSettingsModule();
@@ -604,7 +767,7 @@ $("toggleSidebar").addEventListener("click", () => $("sidebar").classList.toggle
 $("refresh").addEventListener("click", () => loadDashboard().then(() => toast("Dashboard refreshed")).catch((error) => toast(error.message)));
 $("settingsButton").addEventListener("click", () => renderModule("settings").catch((error) => toast(error.message)));
 $("helpButton").addEventListener("click", () => renderModule("help").catch((error) => toast(error.message)));
-$("notificationButton").addEventListener("click", () => toast("Notifications are ready for the next workflow pass."));
+$("notificationButton").addEventListener("click", () => renderModule("notifications").catch((error) => toast(error.message)));
 $("avatar").addEventListener("click", () => {
   if (confirm("Log out of CrewOps?")) {
     localStorage.removeItem("crewopsToken");

@@ -245,6 +245,16 @@ class EquipmentCreate(BaseModel):
     status: str = "Available"
 
 
+class EquipmentLoanCreate(BaseModel):
+    equipment_item_id: str
+    project_id: str | None = None
+    event_id: str | None = None
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    status: str = "Requested"
+    condition_out: str | None = None
+
+
 class WorkshopRecordCreate(BaseModel):
     title: str
     event_id: str | None = None
@@ -277,6 +287,18 @@ class BudgetRequestCreate(BaseModel):
     currency: str = "NZD"
     project_id: str | None = None
     event_id: str | None = None
+
+
+class FinanceRecordCreate(BaseModel):
+    title: str
+    record_type: str = "Expense"
+    amount: float
+    currency: str = "NZD"
+    budget_request_id: str | None = None
+    project_id: str | None = None
+    event_id: str | None = None
+    receipt_file_id: str | None = None
+    status: str = "Draft"
 
 
 class HRRecordCreate(BaseModel):
@@ -340,6 +362,47 @@ class BackupRecordCreate(BaseModel):
     storage_location: str | None = None
     checksum: str | None = None
     size_bytes: int | None = None
+
+
+class XPRecordCreate(BaseModel):
+    user_id: str
+    amount: int
+    reason: str
+    source_entity_type: str | None = None
+    source_entity_id: str | None = None
+
+
+class NotificationCreate(BaseModel):
+    user_id: str
+    title: str
+    body: str | None = None
+    notification_type: str = "general"
+    target_url: str | None = None
+
+
+class FormDefinitionCreate(BaseModel):
+    name: str
+    description: str | None = None
+    form_type: str = "general"
+    json_schema: dict[str, Any] = Field(default_factory=dict)
+    status: str = "Draft"
+
+
+class FormSubmissionCreate(BaseModel):
+    form_definition_id: str
+    submitted_by_user_id: str | None = None
+    submitted_by_visitor_id: str | None = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+    status: str = "Submitted"
+    attached_entity_type: str | None = None
+    attached_entity_id: str | None = None
+
+
+class IntegrationConnectionCreate(BaseModel):
+    provider: str
+    display_name: str
+    status: str = "Planned"
+    config: dict[str, Any] = Field(default_factory=dict)
 
 
 class AuditOut(BaseOut):

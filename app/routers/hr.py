@@ -6,6 +6,7 @@ from ..database import get_db
 from ..deps import require_active_user
 from ..permissions import HR_TAGS, can_access_hr, can_write_hr, has_any_tag, is_admin
 from ..services.audit import audit_log
+from ..services.serialization import model_to_dict, models_to_dicts
 
 router = APIRouter(prefix="/hr", tags=["hr"])
 
@@ -27,7 +28,7 @@ def list_hr_records(reason: str | None = None, request: Request = None, db: Sess
         request=request,
     )
     db.commit()
-    return db.query(models.HRRecord).order_by(models.HRRecord.created_at.desc()).limit(100).all()
+    return models_to_dicts(db.query(models.HRRecord).order_by(models.HRRecord.created_at.desc()).limit(100).all())
 
 
 @router.post("/records")
@@ -39,4 +40,5 @@ def create_hr_record(payload: schemas.HRRecordCreate, request: Request, db: Sess
     db.flush()
     audit_log(db, action="hr_record.create", target_type="HRRecord", target_id=record.id, actor=current_user, new_value={"user_id": payload.user_id, "record_type": payload.record_type, "title": payload.title}, sensitivity="HR-only", request=request)
     db.commit()
-    return record
+    db.refresh(record)
+    return model_to_dict(record)

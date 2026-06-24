@@ -8,6 +8,7 @@ from ..database import get_db
 from ..deps import require_active_user
 from ..permissions import has_any_tag
 from ..services.audit import audit_log
+from ..services.serialization import model_to_dict, models_to_dicts
 
 router = APIRouter(prefix="/backups", tags=["backups"])
 
@@ -20,7 +21,7 @@ def require_data_management(user: models.User) -> None:
 @router.get("")
 def list_backups(db: Session = Depends(get_db), current_user: models.User = Depends(require_active_user)):
     require_data_management(current_user)
-    return db.query(models.BackupRecord).order_by(models.BackupRecord.created_at.desc()).limit(100).all()
+    return models_to_dicts(db.query(models.BackupRecord).order_by(models.BackupRecord.created_at.desc()).limit(100).all())
 
 
 @router.post("")
@@ -31,7 +32,8 @@ def create_backup_record(payload: schemas.BackupRecordCreate, request: Request, 
     db.flush()
     audit_log(db, action="backup.record", target_type="BackupRecord", target_id=backup.id, actor=current_user, new_value=payload.model_dump(), sensitivity="Admin-restricted", request=request)
     db.commit()
-    return backup
+    db.refresh(backup)
+    return model_to_dict(backup)
 
 
 @router.post("/{backup_id}/verify")
@@ -45,4 +47,3 @@ def verify_backup(backup_id: str, request: Request, db: Session = Depends(get_db
     audit_log(db, action="backup.verify", target_type="BackupRecord", target_id=backup.id, actor=current_user, sensitivity="Admin-restricted", request=request)
     db.commit()
     return {"ok": True}
-

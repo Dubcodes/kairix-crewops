@@ -7,6 +7,7 @@ from ..deps import require_active_user
 from ..permissions import is_admin
 from ..services.audit import audit_log
 from ..services.bootstrap import upsert_setting
+from ..services.serialization import models_to_dicts
 
 router = APIRouter(prefix="/org", tags=["organisation"])
 
@@ -71,7 +72,7 @@ def put_setting(
 @router.get("/permissions")
 def list_permission_tags(db: Session = Depends(get_db), current_user: models.User = Depends(require_active_user)):
     rows = db.query(models.PermissionTag).order_by(models.PermissionTag.category, models.PermissionTag.name).all()
-    return rows
+    return models_to_dicts(rows)
 
 
 @router.get("/regions", response_model=list[schemas.RegionOut])
@@ -108,4 +109,3 @@ def create_team(payload: schemas.TeamCreate, request: Request, db: Session = Dep
     db.commit()
     db.refresh(team)
     return team
-

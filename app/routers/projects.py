@@ -5,6 +5,7 @@ from .. import models, schemas
 from ..database import get_db
 from ..deps import require_active_user
 from ..services.audit import audit_log
+from ..services.serialization import model_to_dict
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -50,7 +51,8 @@ def create_role_slot(project_id: str, payload: schemas.RoleSlotCreate, request: 
     db.flush()
     audit_log(db, action="project_role_slot.create", target_type="ProjectRoleSlot", target_id=slot.id, actor=current_user, new_value=payload.model_dump(), request=request)
     db.commit()
-    return slot
+    db.refresh(slot)
+    return model_to_dict(slot)
 
 
 @router.get("/role-suggestions")
@@ -67,4 +69,3 @@ def role_suggestions(project_type: str | None = None, q: str | None = None, db: 
         needle = q.lower()
         ordered = [item for item in ordered if needle in item.lower()]
     return ordered[:20]
-
