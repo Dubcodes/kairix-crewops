@@ -4,6 +4,7 @@ const state = {
   settings: {},
   activeModule: "dashboard",
   data: {},
+  reauth: {},
 };
 
 const moduleList = [
@@ -183,7 +184,7 @@ const resourceModules = {
     render: (row) => item(row.reason, [`${row.amount} XP`, compactId(row.user_id), row.source_entity_type].filter(Boolean).join(" · ")),
   },
   hr: {
-    endpoint: "/hr/records?reason=Routine%20HR%20module%20review",
+    endpoint: "/hr/records",
     createEndpoint: "/hr/records",
     listTitle: "HR records",
     createTitle: "New HR record",
@@ -301,6 +302,30 @@ function renderEmpty(message) {
   return `<div class="empty">${escapeHtml(message)}</div>`;
 }
 
+function sensitiveOptions(moduleId) {
+  const access = state.reauth[moduleId];
+  if (!access) return {};
+  return {
+    headers: {
+      "X-Reauth-Password": access.password,
+      "X-Access-Reason": access.reason,
+    },
+  };
+}
+
+function renderReauthPanel(moduleId, message) {
+  $("moduleContent").innerHTML = `
+    <section class="panel narrow">
+      <h2>Re-authentication required</h2>
+      <p>${escapeHtml(message)}</p>
+      <form class="form-grid" data-reauth-module="${escapeHtml(moduleId)}">
+        ${fieldHtml({ name: "reason", label: "Access reason", required: true })}
+        ${fieldHtml({ name: "password", label: "Re-enter password", type: "password", required: true })}
+        <button class="primary" type="submit">Continue</button>
+      </form>
+    </section>`;
+}
+
 function fieldHtml(field, data = {}) {
   const value = field.value ?? "";
   const required = field.required ? " required" : "";
@@ -344,10 +369,15 @@ async function loadPreload(keys = []) {
 async function renderResourceModule(id) {
   const config = resourceModules[id];
   const preload = await loadPreload(config.preload || []);
-  const rows = await api(config.endpoint).catch((error) => {
+  const rows = await api(config.endpoint, sensitiveOptions(id)).catch((error) => {
+    if (id === "hr" || id === "finance") {
+      renderReauthPanel(id, error.message);
+      return null;
+    }
     toast(error.message);
     return [];
   });
+  if (rows === null) return;
   state.data[id] = rows;
   $("moduleContent").innerHTML = `
     <div class="module-layout">
@@ -472,7 +502,16 @@ async function renderEquipmentModule() {
 }
 
 async function renderFinanceModule() {
-  const [budgets, records] = await Promise.all([api("/finance/budget-requests").catch(() => []), api("/finance/records").catch(() => [])]);
+  const options = sensitiveOptions("finance");
+  const [budgets, records] = await Promise.all([
+    api("/finance/budget-requests", options).catch((error) => ({ error })),
+    api("/finance/records", options).catch((error) => ({ error })),
+  ]);
+  const error = budgets.error || records.error;
+  if (error) {
+    renderReauthPanel("finance", error.message);
+    return;
+  }
   $("moduleContent").innerHTML = `
     <div class="module-layout">
       <section class="panel">
@@ -522,6 +561,16 @@ async function renderFilesModule() {
           ${fieldHtml({ name: "label", label: "Label" })}
           ${fieldHtml({ name: "attached_entity_type", label: "Attached entity type" })}
           <button class="primary" type="submit">Record file</button>
+        </form>
+      </section>
+      <section class="panel">
+        <div class="panel-title"><h2>Upload local copy</h2></div>
+        <form class="form-grid" data-upload-endpoint="/files/upload" data-module="files" enctype="multipart/form-data">
+          <label>File<input name="upload" type="file" required /></label>
+          ${fieldHtml({ name: "label", label: "Label" })}
+          ${fieldHtml({ name: "attached_entity_type", label: "Attached entity type" })}
+          ${fieldHtml({ name: "sensitivity", label: "Sensitivity", value: "Internal" })}
+          <button class="primary" type="submit">Upload file</button>
         </form>
       </section>
       <section class="panel">
@@ -811,11 +860,33 @@ $("moduleContent").addEventListener("submit", async (event) => {
   const form = event.target.closest("form");
   if (!form) return;
   event.preventDefault();
+  if (form.dataset.reauthModule) {
+    const payload = payloadFromForm(form);
+    state.reauth[form.dataset.reauthModule] = { password: payload.password, reason: payload.reason };
+    form.reset();
+    await renderModule(form.dataset.reauthModule);
+    return;
+  }
+  if (form.dataset.uploadEndpoint) {
+    try {
+      await api(form.dataset.uploadEndpoint, { method: "POST", body: new FormData(form) });
+      toast("Uploaded");
+      form.reset();
+      await renderModule(form.dataset.module || state.activeModule);
+    } catch (error) {
+      toast(error.message);
+    }
+    return;
+  }
   const payload = payloadFromForm(form);
   const endpoint = form.dataset.createEndpoint || form.dataset.updateEndpoint;
   const method = form.dataset.updateEndpoint ? "PATCH" : "POST";
+  const options = { method, body: JSON.stringify(payload) };
+  if (form.dataset.module === "hr" || form.dataset.module === "finance") {
+    Object.assign(options, sensitiveOptions(form.dataset.module));
+  }
   try {
-    await api(endpoint, { method, body: JSON.stringify(payload) });
+    await api(endpoint, options);
     toast("Saved");
     form.reset();
     await renderModule(form.dataset.module || state.activeModule);

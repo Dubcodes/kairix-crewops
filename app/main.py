@@ -7,8 +7,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
-from .database import init_db
+from .database import SessionLocal, init_db
 from .routers import announcements, audit, auth, backups, calendar, equipment, files, finance, forms, health, hr, integrations, messages, notifications, org, projects, setup, tasks, training, users, visitors, xp
+from .services.bootstrap import seed_defaults
 
 settings = get_settings()
 
@@ -16,6 +17,12 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    db = SessionLocal()
+    try:
+        seed_defaults(db)
+        db.commit()
+    finally:
+        db.close()
     Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
     Path(settings.backup_dir).mkdir(parents=True, exist_ok=True)
     yield

@@ -44,6 +44,22 @@ The smoke test creates a throwaway SQLite database and verifies the setup flow p
 
 Use `docker-compose.yml` as the stack file. Keep the `crewops_uploads`, `crewops_backups`, and `crewops_postgres` volumes persistent.
 
+Required stack environment values:
+
+```env
+APP_NAME=CrewOps
+ENVIRONMENT=production
+SECRET_KEY=replace-with-a-long-random-secret
+ACCESS_TOKEN_EXPIRE_MINUTES=720
+POSTGRES_DB=crewops
+POSTGRES_USER=crewops
+POSTGRES_PASSWORD=replace-with-a-strong-database-password
+DATABASE_URL=postgresql+psycopg://crewops:replace-with-a-strong-database-password@db:5432/crewops
+UPLOAD_DIR=/data/uploads
+BACKUP_DIR=/data/backups
+CORS_ORIGINS=http://localhost:8088
+```
+
 If you expose the app through Cloudflare Tunnel for testing, create a separate tunnel stack and point it at `http://crewops-app:8000` if both stacks share an external Docker network, or at the host/Portainer published port otherwise.
 
 ## Security notes
@@ -51,5 +67,5 @@ If you expose the app through Cloudflare Tunnel for testing, create a separate t
 - Change `SECRET_KEY` before deployment.
 - Use HTTPS at the tunnel/domain layer.
 - Keep PostgreSQL private to the Docker network.
-- Sensitive HR and finance API routes require permission tags and create audit entries.
-- The app stores only file metadata in the database; uploaded file storage is prepared as a local volume for follow-up implementation.
+- Sensitive HR and finance API routes require domain permissions or password re-entry with an access reason, and create audit entries.
+- Uploaded files are saved to the persistent upload volume, with metadata and checksums recorded in the database.

@@ -4,7 +4,9 @@ import tempfile
 db_path = os.path.join(tempfile.gettempdir(), "crewops-pytest.db")
 if os.path.exists(db_path):
     os.remove(db_path)
+upload_dir = os.path.join(tempfile.gettempdir(), "crewops-test-uploads")
 os.environ["DATABASE_URL"] = f"sqlite:///{db_path.replace(os.sep, '/')}"
+os.environ["UPLOAD_DIR"] = upload_dir
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -26,6 +28,11 @@ def test_core_modules_are_reachable_and_audited():
         assert response.status_code == 200, response.text
         token = response.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
+        sensitive_headers = {
+            **headers,
+            "X-Reauth-Password": "change-me-now",
+            "X-Access-Reason": "Automated smoke test",
+        }
 
         me = client.get("/api/auth/me", headers=headers)
         assert me.status_code == 200, me.text
@@ -33,13 +40,13 @@ def test_core_modules_are_reachable_and_audited():
 
         created = {}
 
-        def post(path, payload):
-            response = client.post(path, headers=headers, json=payload)
+        def post(path, payload, request_headers=headers):
+            response = client.post(path, headers=request_headers, json=payload)
             assert response.status_code < 300, (path, response.status_code, response.text)
             return response.json()
 
-        def get(path):
-            response = client.get(path, headers=headers)
+        def get(path, request_headers=headers):
+            response = client.get(path, headers=request_headers)
             assert response.status_code < 300, (path, response.status_code, response.text)
             return response.json()
 
@@ -71,12 +78,26 @@ def test_core_modules_are_reachable_and_audited():
         created["equipment"] = post("/api/equipment/items", {"name": "Camera Kit", "category": "Camera"})
         created["loan"] = post("/api/equipment/loans", {"equipment_item_id": created["equipment"]["id"]})
         created["budget"] = post("/api/finance/budget-requests", {"title": "Batteries", "amount": 42.5})
-        created["finance"] = post("/api/finance/records", {"title": "Receipt", "amount": 42.5})
-        created["hr"] = post("/api/hr/records", {"user_id": created["member"]["id"], "title": "Private note"})
+        blocked_finance = client.get("/api/finance/records", headers=headers)
+        assert blocked_finance.status_code == 403
+        blocked_hr = client.get("/api/hr/records", headers=headers)
+        assert blocked_hr.status_code == 403
+
+        created["finance"] = post("/api/finance/records", {"title": "Receipt", "amount": 42.5}, sensitive_headers)
+        created["hr"] = post("/api/hr/records", {"user_id": created["member"]["id"], "title": "Private note"}, sensitive_headers)
         created["thread"] = post("/api/messages/threads", {"title": "Production thread"})
         created["message"] = post(f"/api/messages/threads/{created['thread']['id']}/messages", {"body": "Hello"})
         created["announcement"] = post("/api/announcements", {"title": "Notice", "body": "Hello crew"})
         created["file"] = post("/api/files/records", {"local_path": "/data/uploads/test.pdf", "original_filename": "test.pdf"})
+        upload_response = client.post(
+            "/api/files/upload",
+            headers=headers,
+            data={"label": "Uploaded test", "sensitivity": "Internal"},
+            files={"upload": ("upload.txt", b"hello crewops", "text/plain")},
+        )
+        assert upload_response.status_code < 300, upload_response.text
+        created["upload"] = upload_response.json()
+        assert os.path.exists(created["upload"]["local_path"])
         created["link"] = post("/api/files/links", {"label": "Drive folder", "url": "https://example.org"})
         created["xp"] = post("/api/xp/records", {"user_id": created["member"]["id"], "amount": 10, "reason": "Workshop help"})
         created["notification"] = post("/api/notifications", {"user_id": user_id, "title": "System ready"})
@@ -89,6 +110,7 @@ def test_core_modules_are_reachable_and_audited():
             "/api/org",
             "/api/org/settings",
             "/api/org/permissions",
+            "/api/org/sensitivity-levels",
             "/api/org/regions",
             "/api/org/teams",
             "/api/users",
@@ -101,9 +123,6 @@ def test_core_modules_are_reachable_and_audited():
             "/api/training/skills",
             "/api/equipment/items",
             "/api/equipment/loans",
-            "/api/finance/budget-requests",
-            "/api/finance/records",
-            "/api/hr/records?reason=Smoke%20test",
             "/api/messages/threads",
             f"/api/messages/threads/{created['thread']['id']}/messages",
             "/api/announcements",
@@ -119,6 +138,9 @@ def test_core_modules_are_reachable_and_audited():
             "/api/health",
         ]:
             get(path)
+
+        for path in ["/api/finance/budget-requests", "/api/finance/records", "/api/hr/records"]:
+            get(path, sensitive_headers)
 
         audit_entries = get("/api/audit")
         assert len(audit_entries) >= 20

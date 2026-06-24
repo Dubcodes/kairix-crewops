@@ -11,6 +11,17 @@ DEFAULT_PROJECT_TYPES = {
     "Administration": ["Project Lead", "Operations Admin", "Reviewer"],
 }
 
+DEFAULT_SENSITIVITIES = [
+    ("Public", "Visible to the public.", False, False),
+    ("Member-visible", "Visible to authenticated members.", False, False),
+    ("Internal", "Internal operational information.", False, False),
+    ("Confidential", "Restricted confidential information.", True, True),
+    ("HR-only", "HR-controlled private people records.", True, True),
+    ("Finance-sensitive", "Finance-controlled sensitive records.", True, True),
+    ("Admin-restricted", "Administrator/data-management restricted records.", True, True),
+    ("Emergency-access-only", "Break-glass access only with reason and audit.", True, True),
+]
+
 DEFAULT_SETTINGS = {
     "enabled_modules": [
         "dashboard",
@@ -25,8 +36,12 @@ DEFAULT_SETTINGS = {
         "finance",
         "hr",
         "messages",
+        "notifications",
         "announcements",
+        "xp",
+        "forms",
         "files",
+        "integrations",
         "audit",
         "settings",
     ],
@@ -50,6 +65,20 @@ def seed_defaults(db: Session, actor_id: str | None = None) -> None:
         exists = db.query(models.ProjectType).filter(models.ProjectType.name == name).first()
         if not exists:
             db.add(models.ProjectType(name=name, default_role_suggestions=suggestions, created_by_id=actor_id, updated_by_id=actor_id))
+
+    for name, description, sensitive, reauth in DEFAULT_SENSITIVITIES:
+        exists = db.query(models.DataSensitivity).filter(models.DataSensitivity.name == name).first()
+        if not exists:
+            db.add(
+                models.DataSensitivity(
+                    name=name,
+                    description=description,
+                    is_sensitive=sensitive,
+                    requires_reauth=reauth,
+                    created_by_id=actor_id,
+                    updated_by_id=actor_id,
+                )
+            )
 
     db.flush()
 
@@ -76,4 +105,3 @@ def upsert_setting(db: Session, organisation_id: str, key: str, value, category:
         db.add(setting)
     db.flush()
     return setting
-

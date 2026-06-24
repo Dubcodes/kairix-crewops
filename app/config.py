@@ -2,6 +2,7 @@ from functools import lru_cache
 from typing import List
 
 from pydantic import field_validator
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,8 +25,19 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
 
+    @model_validator(mode="after")
+    def validate_production_secrets(self):
+        weak_secrets = {
+            "dev-change-me",
+            "change-me",
+            "change-me-to-a-long-random-secret",
+            "replace-with-a-long-random-secret",
+        }
+        if self.environment.lower() == "production" and (self.secret_key in weak_secrets or len(self.secret_key) < 32):
+            raise ValueError("SECRET_KEY must be set to a strong unique value of at least 32 characters in production")
+        return self
+
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

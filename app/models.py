@@ -521,6 +521,15 @@ class BackupRecord(EntityMixin, Base):
     domain_approval_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
 
+class DataSensitivity(EntityMixin, Base):
+    __tablename__ = "data_sensitivities"
+
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_sensitive: Mapped[bool] = mapped_column(Boolean, default=False)
+    requires_reauth: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
 class FormDefinition(EntityMixin, Base):
     __tablename__ = "form_definitions"
 

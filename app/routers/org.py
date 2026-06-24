@@ -75,6 +75,12 @@ def list_permission_tags(db: Session = Depends(get_db), current_user: models.Use
     return models_to_dicts(rows)
 
 
+@router.get("/sensitivity-levels")
+def list_sensitivity_levels(db: Session = Depends(get_db), current_user: models.User = Depends(require_active_user)):
+    rows = db.query(models.DataSensitivity).order_by(models.DataSensitivity.name).all()
+    return models_to_dicts(rows)
+
+
 @router.get("/regions", response_model=list[schemas.RegionOut])
 def list_regions(db: Session = Depends(get_db), current_user: models.User = Depends(require_active_user)):
     return db.query(models.Region).order_by(models.Region.name).all()
