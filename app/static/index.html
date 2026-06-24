@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CrewOps</title>
+    <title>Kairix CrewOps</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
@@ -12,7 +12,7 @@
         <div class="brand">
           <div class="brand-mark">C</div>
           <div>
-            <strong id="brandName">CrewOps</strong>
+            <strong id="brandName">Kairix CrewOps</strong>
             <span id="brandSub">Operations</span>
           </div>
         </div>
@@ -21,14 +21,15 @@
 
       <main class="shell">
         <header class="topbar">
-            <button class="icon-button" id="toggleSidebar" title="Toggle sidebar">☰</button>
-            <input id="search" class="search" placeholder="Search accessible records" />
+            <button class="icon-button" id="toggleSidebar" title="Toggle sidebar" aria-label="Toggle sidebar"></button>
+            <label class="sr-only" for="search">Search accessible records</label>
+            <input id="search" class="search" aria-label="Search accessible records" />
             <div class="topbar-right">
               <div class="xp"><span id="xpFill"></span></div>
               <span id="levelLabel">Level 1</span>
-            <button class="icon-button" id="notificationButton" title="Notifications">●</button>
-            <button class="icon-button" id="helpButton" title="Help">?</button>
-            <button class="icon-button" id="settingsButton" title="Settings">⚙</button>
+            <button class="icon-button" id="notificationButton" title="Notifications" aria-label="Notifications"></button>
+            <button class="icon-button" id="helpButton" title="Help" aria-label="Help"></button>
+            <button class="icon-button" id="settingsButton" title="Settings" aria-label="Settings"></button>
             <button class="avatar" id="avatar">?</button>
           </div>
         </header>
@@ -37,21 +38,20 @@
           <div class="panel narrow">
             <h1>Initial setup</h1>
             <form id="setupForm" class="stack">
-              <label>Organisation name<input name="organisation_name" required value="CrewOps Demo" /></label>
-              <label>Short name<input name="organisation_short_name" required value="CrewOps" /></label>
-              <label>Website URL<input name="website_url" placeholder="https://example.org" /></label>
+              <label>Organisation name<input name="organisation_name" required /></label>
+              <label>Short name<input name="organisation_short_name" required /></label>
+              <label>Website URL<input name="website_url" /></label>
               <div class="split">
                 <label>Country<input name="country" value="New Zealand" /></label>
                 <label>Timezone<input name="timezone" value="Pacific/Auckland" /></label>
               </div>
               <div class="split">
-                <label>Admin username<input name="admin_username" required value="admin" /></label>
-                <label>Admin email<input name="admin_email" required type="email" value="admin@example.org" /></label>
+                <label>Admin username<input name="admin_username" required /></label>
+                <label>Admin email<input name="admin_email" required type="email" /></label>
               </div>
-              <label>Admin display name<input name="admin_display_name" required value="System Owner" /></label>
+              <label>Admin display name<input name="admin_display_name" required /></label>
               <label>Admin password<input name="admin_password" required type="password" minlength="10" /></label>
-              <label>Default regions<textarea name="default_regions">Upper North Island
-Lower North Island</textarea></label>
+              <label>Default regions<textarea name="default_regions"></textarea></label>
               <button class="primary" type="submit">Create organisation</button>
             </form>
           </div>
@@ -72,7 +72,7 @@ Lower North Island</textarea></label>
           <div class="dashboard-head">
             <div>
               <h1 id="welcome">Dashboard</h1>
-              <p id="subtitle">Calendar, tasks, and operational modules.</p>
+              <p id="subtitle">Today’s schedule, open work, updates, and records.</p>
             </div>
             <button class="primary" id="refresh">Refresh</button>
           </div>
@@ -90,6 +90,18 @@ Lower North Island</textarea></label>
                 <button id="quickTask">New task</button>
               </div>
               <div id="taskList" class="list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-title"><h2>Notifications</h2></div>
+              <div id="notificationList" class="list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-title"><h2>Announcements</h2></div>
+              <div id="announcementList" class="list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-title"><h2>Progress</h2></div>
+              <div id="progressCard" class="progress-card"></div>
             </section>
             <section class="panel">
               <div class="panel-title"><h2>Contacts</h2></div>

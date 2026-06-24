@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "CrewOps"
+    app_name: str = "Kairix CrewOps"
     environment: str = "development"
     secret_key: str = "dev-change-me"
     access_token_expire_minutes: int = 720

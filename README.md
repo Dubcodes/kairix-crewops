@@ -1,16 +1,16 @@
-# CrewOps
+# Kairix CrewOps
 
-CrewOps is a self-hosted operations backend for community, film, nonprofit, club, and volunteer organisations. It is designed to be run in Docker/Portainer with PostgreSQL and local persistent upload/backup volumes.
+Kairix CrewOps is a self-hosted operations backend for community, film, nonprofit, club, and volunteer organisations. It is designed to be run in Docker/Portainer with PostgreSQL and local persistent upload/backup volumes.
 
-This first version prioritises:
+The application provides:
 
-- broad data structure over deep polish in one module
+- operational records across the core organisation modules
 - setup-time branding and module configuration
 - username/password auth with hashed passwords
 - composable permission tags, regions, and teams
 - audit logging for important changes
-- clean APIs for future integrations
-- local file metadata and future sync fields
+- clean APIs for integrations
+- local file metadata and sync-ready fields
 
 Cloudflare Tunnel is intentionally not included in this stack. Run it as a separate Portainer stack/container so redeploying CrewOps does not reset the temporary tunnel URL.
 
@@ -47,7 +47,7 @@ Use `docker-compose.yml` as the stack file. Keep the `crewops_uploads`, `crewops
 Required stack environment values:
 
 ```env
-APP_NAME=CrewOps
+APP_NAME=Kairix CrewOps
 ENVIRONMENT=production
 SECRET_KEY=replace-with-a-long-random-secret
 ACCESS_TOKEN_EXPIRE_MINUTES=720

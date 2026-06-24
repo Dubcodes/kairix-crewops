@@ -8,29 +8,31 @@ const state = {
   selectedTaskId: null,
 };
 
+const PRODUCT_NAME = "Kairix CrewOps";
+
 const moduleList = [
-  { id: "dashboard", label: "Dashboard", icon: "⌂", summary: "Calendar, tasks, contacts, and module status." },
-  { id: "calendar", label: "Calendar", icon: "◇", summary: "Events, workshops, shoots, meetings, and attendance-ready dates." },
-  { id: "projects", label: "Projects", icon: "▣", summary: "Operational projects, productions, workshops, and public activities." },
-  { id: "tasks", label: "Tasks", icon: "✓", summary: "Global tasks attached to any operational record." },
-  { id: "members", label: "Members", icon: "◌", summary: "Accounts, membership state, XP, and permission tags." },
-  { id: "visitors", label: "Visitors", icon: "◎", summary: "Lightweight non-member records that can later link to accounts." },
-  { id: "regions", label: "Teams/Regions", icon: "⌘", summary: "Editable regions and teams for scoped access." },
-  { id: "training", label: "Workshops/Training", icon: "✦", summary: "Workshop records, skills, and training history." },
-  { id: "equipment", label: "Equipment", icon: "▤", summary: "Assets, gear status, storage notes, and loan planning." },
-  { id: "finance", label: "Finance", icon: "$", summary: "Budget requests, approvals, and finance-sensitive records." },
-  { id: "hr", label: "HR", icon: "◈", summary: "Compartmentalised HR notes and sensitive people records." },
-  { id: "messages", label: "Messages", icon: "✉", summary: "Internal threads for people, projects, events, and teams." },
-  { id: "notifications", label: "Notifications", icon: "●", summary: "Personal alerts and official system notifications." },
-  { id: "announcements", label: "Announcements", icon: "◍", summary: "Noticeboard posts, newsletters, and important updates." },
-  { id: "xp", label: "XP", icon: "↗", summary: "Experience awards connected to attendance, tasks, projects, and training." },
-  { id: "forms", label: "Forms", icon: "▥", summary: "Form definitions and submissions for operational workflows." },
-  { id: "files", label: "Files/Documents", icon: "□", summary: "Local file metadata and compact external links." },
-  { id: "integrations", label: "Integrations", icon: "⇄", summary: "Future connections to Google, Xero, email, files, and automation." },
-  { id: "audit", label: "Reports/Audit", icon: "≡", summary: "Audit history and oversight records." },
-  { id: "settings", label: "Settings", icon: "⚙", summary: "Organisation branding, defaults, modules, and thresholds." },
-  { id: "admin", label: "Admin/System", icon: "⌬", summary: "Health, backups, permissions, and system operations." },
-  { id: "help", label: "Help", icon: "?", summary: "Module guide and v1 operating notes." },
+  { id: "dashboard", label: "Dashboard", icon: "dashboard", summary: "Calendar, tasks, contacts, updates, and progress." },
+  { id: "calendar", label: "Calendar", icon: "calendar", summary: "Events, workshops, shoots, meetings, and attendance dates." },
+  { id: "projects", label: "Projects", icon: "projects", summary: "Films, workshops, events, and internal operational work." },
+  { id: "tasks", label: "Tasks", icon: "tasks", summary: "Work items linked to people, projects, events, or operations." },
+  { id: "members", label: "Members", icon: "members", summary: "Accounts, membership state, XP, teams, and permissions." },
+  { id: "visitors", label: "Visitors", icon: "visitors", summary: "Guest and non-member contact records." },
+  { id: "regions", label: "Teams/Regions", icon: "regions", summary: "Regions and teams used for access and organisation." },
+  { id: "training", label: "Workshops/Training", icon: "training", summary: "Workshop records, skills, attendance, and training history." },
+  { id: "equipment", label: "Equipment", icon: "equipment", summary: "Assets, gear status, storage notes, and loans." },
+  { id: "finance", label: "Finance", icon: "finance", summary: "Budget requests, approvals, and finance records." },
+  { id: "hr", label: "HR", icon: "hr", summary: "Restricted HR notes and sensitive people records." },
+  { id: "messages", label: "Messages", icon: "messages", summary: "Internal threads for people, projects, events, and teams." },
+  { id: "notifications", label: "Notifications", icon: "notifications", summary: "Personal alerts and operational notices." },
+  { id: "announcements", label: "Announcements", icon: "announcements", summary: "Noticeboard posts, newsletters, and important updates." },
+  { id: "xp", label: "XP", icon: "xp", summary: "Experience awards connected to attendance, tasks, and projects." },
+  { id: "forms", label: "Forms", icon: "forms", summary: "Forms and submissions for operational workflows." },
+  { id: "files", label: "Files/Documents", icon: "files", summary: "File records, uploads, and external document links." },
+  { id: "integrations", label: "Integrations", icon: "integrations", summary: "Connection records for external services and sync activity." },
+  { id: "audit", label: "Reports/Audit", icon: "audit", summary: "Audit history and oversight records." },
+  { id: "settings", label: "Settings", icon: "settings", summary: "Organisation branding, defaults, modules, and thresholds." },
+  { id: "admin", label: "Admin/System", icon: "admin", summary: "Health, backups, permissions, and system operations." },
+  { id: "help", label: "Help", icon: "help", summary: "Guidance for using each area of the system." },
 ];
 
 const moduleById = Object.fromEntries(moduleList.map((module) => [module.id, module]));
@@ -243,6 +245,42 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function iconSvg(name) {
+  const icons = {
+    dashboard: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect>',
+    calendar: '<rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M16 3v4M8 3v4M3 11h18"></path>',
+    projects: '<path d="M4 6h6l2 2h8v10a2 2 0 0 1-2 2H4z"></path>',
+    tasks: '<path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
+    members: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.9"></path><path d="M16 3.1a4 4 0 0 1 0 7.8"></path>',
+    visitors: '<path d="M19 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="11.5" cy="7" r="4"></circle><path d="M20 8v6M23 11h-6"></path>',
+    regions: '<path d="M12 21s7-4.4 7-11a7 7 0 1 0-14 0c0 6.6 7 11 7 11z"></path><circle cx="12" cy="10" r="2"></circle>',
+    training: '<path d="M22 10L12 5 2 10l10 5 10-5z"></path><path d="M6 12v5c3 2 9 2 12 0v-5"></path>',
+    equipment: '<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z"></path><path d="M3.3 7L12 12l8.7-5"></path><path d="M12 22V12"></path>',
+    finance: '<path d="M3 6h18v12H3z"></path><circle cx="12" cy="12" r="3"></circle><path d="M7 12h.01M17 12h.01"></path>',
+    hr: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12h6M12 9v6"></path>',
+    messages: '<path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>',
+    notifications: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path>',
+    announcements: '<path d="M3 11v2a2 2 0 0 0 2 2h3l7 4V5l-7 4H5a2 2 0 0 0-2 2z"></path><path d="M19 9a3 3 0 0 1 0 6"></path>',
+    xp: '<path d="M3 17l6-6 4 4 8-8"></path><path d="M14 7h7v7"></path>',
+    forms: '<path d="M8 3h8l4 4v14H4V3z"></path><path d="M14 3v5h5M8 13h8M8 17h6"></path>',
+    files: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path>',
+    integrations: '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"></path>',
+    audit: '<path d="M4 5h16M4 12h16M4 19h16"></path><path d="M8 5v14"></path>',
+    settings: '<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7.1 4l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.6 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>',
+    admin: '<rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M9 9h6v6H9z"></path><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 15h3M1 9h3M1 15h3"></path>',
+    help: '<circle cx="12" cy="12" r="10"></circle><path d="M9.1 9a3 3 0 1 1 5.8 1c-.6 1-1.6 1.5-2.4 2.2-.6.5-.9 1.1-.9 1.8"></path><path d="M12 18h.01"></path>',
+    menu: '<path d="M4 6h16M4 12h16M4 18h16"></path>',
+  };
+  return `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${icons[name] || icons.help}</svg>`;
+}
+
+function renderShellIcons() {
+  $("toggleSidebar").innerHTML = iconSvg("menu");
+  $("notificationButton").innerHTML = iconSvg("notifications");
+  $("helpButton").innerHTML = iconSvg("help");
+  $("settingsButton").innerHTML = iconSvg("settings");
+}
+
 function toast(message) {
   const box = $("toast");
   box.textContent = String(message);
@@ -309,7 +347,7 @@ function setActiveNav(id) {
 
 function renderNav() {
   $("nav").innerHTML = moduleList
-    .map((module) => `<button data-module="${module.id}" class="${module.id === state.activeModule ? "active" : ""}" title="${escapeHtml(module.label)}"><b>${module.icon}</b><span>${escapeHtml(module.label)}</span></button>`)
+    .map((module) => `<button data-module="${module.id}" class="${module.id === state.activeModule ? "active" : ""}" title="${escapeHtml(module.label)}">${iconSvg(module.icon)}<span>${escapeHtml(module.label)}</span></button>`)
     .join("");
 }
 
@@ -334,6 +372,15 @@ function compactId(value) {
 
 function tags(values) {
   return Array.isArray(values) && values.length ? values.join(", ") : "";
+}
+
+function hasAnyPermission(names) {
+  const assigned = new Set(state.me?.permission_tags || []);
+  return names.some((name) => assigned.has(name));
+}
+
+function isAdministrator() {
+  return hasAnyPermission(["System Owner", "Administrator"]);
 }
 
 function item(title, meta = "", extra = "") {
@@ -734,11 +781,11 @@ async function renderIntegrationsModule() {
         <div class="list">${connections.length ? connections.map((row) => item(row.display_name, [row.provider, row.status].filter(Boolean).join(" · "))).join("") : renderEmpty("No integration connections yet.")}</div>
       </section>
       <section class="panel">
-        <div class="panel-title"><h2>New planned connection</h2></div>
+        <div class="panel-title"><h2>New connection</h2></div>
         <form class="form-grid" data-create-endpoint="/integrations/connections" data-module="integrations">
           ${fieldHtml({ name: "provider", label: "Provider", required: true })}
           ${fieldHtml({ name: "display_name", label: "Display name", required: true })}
-          ${fieldHtml({ name: "status", label: "Status", value: "Planned" })}
+          ${fieldHtml({ name: "status", label: "Status", value: "Configured" })}
           <button class="primary" type="submit">Record connection</button>
         </form>
       </section>
@@ -816,14 +863,31 @@ async function renderAdminModule() {
 }
 
 function renderHelpModule() {
+  const canFinance = isAdministrator() || hasAnyPermission(["Treasurer", "Finance Trainee", "Finance Assistant", "Finance Officer", "Finance Manager", "Board Member", "Founding Board Member", "Chair"]);
+  const canHr = isAdministrator() || hasAnyPermission(["HR Trainee", "HR Assistant", "HR Officer", "HR Manager"]);
+  const canAdmin = isAdministrator() || hasAnyPermission(["Data Management"]);
+  const sections = [
+    ["Getting started", `Sign in, review the Dashboard, then use ${state.settings.organisation_short_name || "CrewOps"} modules to record the work your organisation is managing. Use Settings to keep organisation details current.`],
+    ["Dashboard", "Use the Dashboard for today’s calendar, open tasks, notifications, announcements, recent contacts, and level progress."],
+    ["Calendar", "Use Calendar to schedule workshops, shoots, meetings, events, and other dates. Calendar records can support attendance and operational planning."],
+    ["Projects", "Use Projects to organise films, workshops, events, and internal work. A project can include roles, tasks, calendar events, files, equipment requests, messages, and budget records."],
+    ["Tasks", "Use Tasks to assign work, track priority and due dates, and mark items complete. You can edit tasks you created, tasks assigned to you, or tasks you are authorised to manage."],
+    ["Members and visitors", "Use Members for account holders and ongoing participants. Use Visitors for guests, contacts, and people who should not yet have a login."],
+    ["Teams and regions", "Use Teams and Regions to group people, scope access, and keep work organised across locations or operating groups."],
+    ["Equipment", "Use Equipment to record assets, storage locations, condition, availability, and loans."],
+    ["Finance", canFinance ? "Use Finance to raise budget requests, review approvals, and record finance-sensitive information." : "Finance is available to authorised finance and governance users."],
+    ["HR", canHr ? "Use HR for restricted people records that require additional care and audit history." : "HR is available only to authorised people-team users."],
+    ["Messages and notifications", "Use Messages for internal threads and Notifications for personal alerts or action prompts."],
+    ["Files and documents", "Use Files and Documents to record uploaded files, local storage details, sensitivity, and external links."],
+    ["Reports and audit", "Use Reports and Audit to review important changes and support oversight."],
+    ["Settings", "Use Settings to update organisation details, defaults, enabled areas, and operational thresholds."],
+    ["Admin/system tools", canAdmin ? "Use Admin/System for health checks, backup records, permission tags, and system-level operations." : "Admin/System tools are available to authorised administrators and data managers."],
+  ];
   $("moduleContent").innerHTML = `
-    <section class="panel">
-      <h2>V1 operating notes</h2>
-      <div class="list">
-        ${item("Broad but shallow", "Each module starts with core create/list workflows and audited API records.")}
-        ${item("Sensitive areas", "HR and finance routes are permission-checked and create audit records.")}
-        ${item("Portainer deployment", "Deploy from the public GitHub repository and keep secrets in stack environment variables.")}
-        ${item("Stable v1", "The system has reachable create/list workflows across the core modules, with audit logging on operational changes.")}
+    <section class="panel help-panel">
+      <div class="panel-title"><h2>Using CrewOps</h2></div>
+      <div class="help-grid">
+        ${sections.map(([title, body]) => `<article class="help-item"><h3>${escapeHtml(title)}</h3><p>${escapeHtml(body)}</p></article>`).join("")}
       </div>
     </section>`;
 }
@@ -872,34 +936,50 @@ function enabledModules(settings) {
 function renderModules(settings) {
   $("moduleGrid").innerHTML = enabledModules(settings)
     .filter((module) => module.id !== "dashboard")
-    .map((module) => `<button class="module" data-module="${module.id}"><strong>${module.icon} ${escapeHtml(module.label)}</strong><span>${escapeHtml(module.summary)}</span></button>`)
+    .map((module) => `<button class="module" data-module="${module.id}"><span class="module-title">${iconSvg(module.icon)}<strong>${escapeHtml(module.label)}</strong></span><span>${escapeHtml(module.summary)}</span></button>`)
     .join("");
 }
 
 async function loadDashboard() {
   if (!requireSession()) return;
-  const [settings, events, tasks, users] = await Promise.all([
+  const [settings, events, tasks, users, notifications, announcements] = await Promise.all([
     api("/org/settings").catch(() => ({})),
     api("/calendar/events").catch(() => []),
     api("/tasks?assigned_to_me=false").catch(() => []),
     api("/users").catch(() => []),
+    api("/notifications").catch(() => []),
+    api("/announcements").catch(() => []),
   ]);
   state.settings = settings;
   renderModules(settings);
   $("calendarList").innerHTML = events.length
     ? events.map((event) => item(event.title, `${event.event_type || "Event"} · ${formatDate(event.starts_at)}`)).join("")
-    : item("No calendar events yet", "Create one when your first workshop, shoot, or meeting is known.");
+    : item("No calendar events yet", "Create your first workshop, shoot, meeting, or event when a date is known.");
   $("taskList").innerHTML = tasks.length
-    ? tasks.map((task) => item(task.title, `${task.status} · ${task.priority}`)).join("")
-    : item("No tasks yet", "Operational tasks can attach to projects, events, finance, HR, equipment, or general admin.");
+    ? tasks.slice(0, 6).map((task) => item(task.title, `${task.status} · ${task.priority}${task.due_at ? ` · ${formatDate(task.due_at)}` : ""}`)).join("")
+    : item("No tasks yet", "Create your first task to track operational work and ownership.");
+  $("notificationList").innerHTML = notifications.length
+    ? notifications.slice(0, 5).map((note) => item(note.title, [note.read_at ? "Read" : "Unread", note.body].filter(Boolean).join(" · "))).join("")
+    : item("No notifications", "Personal alerts and action prompts will appear here.");
+  $("announcementList").innerHTML = announcements.length
+    ? announcements.slice(0, 4).map((announcement) => item(announcement.title, [announcement.category, announcement.status].filter(Boolean).join(" · "))).join("")
+    : item("No announcements", "Published organisation updates will appear here.");
+  const level = state.me?.level || 1;
+  const xp = state.me?.xp_total || 0;
+  const progress = Math.min(100, xp % 100);
+  $("progressCard").innerHTML = `
+    <div class="progress-row"><strong>Level ${escapeHtml(level)}</strong><span>${escapeHtml(xp)} XP</span></div>
+    <div class="progress-track"><span style="width: ${progress}%"></span></div>
+    <p>${100 - progress} XP to the next level.</p>`;
   $("contactList").innerHTML = users.length
     ? users.slice(0, 8).map((user) => item(user.display_name, `${user.member_type} · ${user.account_status}`)).join("")
-    : item("No members yet", "The first administrator was created during setup.");
+    : item("No members yet", "Create member accounts when people need access.");
   setActiveNav("dashboard");
 }
 
 async function boot() {
   setAuthenticatedUi(false);
+  renderShellIcons();
   renderNav();
   const setup = await api("/setup/status", { allowUnauthenticated: true });
   if (!setup.setup_complete) {
@@ -915,9 +995,10 @@ async function boot() {
     setAuthenticatedUi(true);
     $("welcome").textContent = `Welcome, ${state.me.display_name}`;
     $("avatar").textContent = state.me.display_name.slice(0, 1).toUpperCase();
-    $("levelLabel").textContent = `Level ${state.me.level}`;
+    $("levelLabel").textContent = `Level ${state.me.level} · ${state.me.xp_total} XP`;
     $("xpFill").style.width = `${Math.min(100, state.me.xp_total % 100)}%`;
-    $("brandName").textContent = setup.organisation_name || "CrewOps";
+    $("brandName").textContent = setup.organisation_name || PRODUCT_NAME;
+    document.title = setup.organisation_name || PRODUCT_NAME;
     await renderModule(state.activeModule || "dashboard");
   } catch (error) {
     resetAuth();
