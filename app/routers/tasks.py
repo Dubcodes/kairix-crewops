@@ -9,9 +9,17 @@ from ..services.audit import audit_log
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
+DONE_STATUSES = {"Done", "Complete"}
+
 
 def can_manage_task(task: models.Task, user: models.User) -> bool:
     return is_admin(user) or task.created_by_id == user.id or task.assigned_to_id == user.id
+
+
+def normalise_task_status(status: str | None) -> str | None:
+    if status == "Complete":
+        return "Done"
+    return status
 
 
 @router.get("", response_model=list[schemas.TaskOut])
@@ -52,11 +60,13 @@ def update_task(task_id: str, payload: schemas.TaskUpdate, request: Request, db:
         "status": task.status,
     }
     updates = payload.model_dump(exclude_unset=True)
+    if "status" in updates:
+        updates["status"] = normalise_task_status(updates["status"])
     for key, value in updates.items():
         setattr(task, key, value)
-    if updates.get("status") == "Complete":
+    if updates.get("status") in DONE_STATUSES:
         task.completed_by_id = current_user.id
-    elif "status" in updates and updates["status"] != "Complete":
+    elif "status" in updates and updates["status"] not in DONE_STATUSES:
         task.completed_by_id = None
     task.updated_by_id = current_user.id
     audit_log(db, action="task.update", target_type="Task", target_id=task.id, actor=current_user, old_value=old_value, new_value=payload.model_dump(exclude_unset=True, mode="json"), request=request)
@@ -66,19 +76,47 @@ def update_task(task_id: str, payload: schemas.TaskUpdate, request: Request, db:
 
 
 @router.patch("/{task_id}/status")
-def update_task_status(task_id: str, status: str, request: Request, db: Session = Depends(get_db), current_user: models.User = Depends(require_active_user)):
+def update_task_status(task_id: str, status: str, reason: str | None = None, request: Request = None, db: Session = Depends(get_db), current_user: models.User = Depends(require_active_user)):
     task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     if not can_manage_task(task, current_user):
         raise HTTPException(status_code=403, detail="Only the task creator, assignee, or administrator can update this task")
     old_status = task.status
-    task.status = status
+    new_status = normalise_task_status(status)
+    if new_status == "Halted" and not reason:
+        raise HTTPException(status_code=400, detail="Halted tasks require a short reason")
+    task.status = new_status
     task.updated_by_id = current_user.id
-    if status == "Complete":
+    if new_status in DONE_STATUSES:
         task.completed_by_id = current_user.id
     else:
         task.completed_by_id = None
-    audit_log(db, action="task.status_update", target_type="Task", target_id=task.id, actor=current_user, old_value={"status": old_status}, new_value={"status": status}, request=request)
+    notification_sent = False
+    if new_status == "Halted" and task.created_by_id and task.created_by_id != current_user.id:
+        db.add(
+            models.Notification(
+                user_id=task.created_by_id,
+                title="Task halted",
+                body=f"{current_user.display_name} halted “{task.title}”: {reason}",
+                notification_type="task",
+                target_url="/tasks",
+                created_by_id=current_user.id,
+                updated_by_id=current_user.id,
+            )
+        )
+        notification_sent = True
+    audit_log(
+        db,
+        action="task.status_update",
+        target_type="Task",
+        target_id=task.id,
+        actor=current_user,
+        old_value={"status": old_status},
+        new_value={"status": new_status},
+        reason=reason,
+        notification_sent=notification_sent,
+        request=request,
+    )
     db.commit()
     return {"ok": True}

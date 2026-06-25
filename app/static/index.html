@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Kairix CrewOps</title>
+    <title>CrewOps</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
@@ -12,7 +12,7 @@
         <div class="brand">
           <div class="brand-mark">C</div>
           <div>
-            <strong id="brandName">Kairix CrewOps</strong>
+            <strong id="brandName">CrewOps</strong>
             <span id="brandSub">Operations</span>
           </div>
         </div>
@@ -100,6 +100,10 @@
               <div id="announcementList" class="list"></div>
             </section>
             <section class="panel">
+              <div class="panel-title"><h2>Recent messages</h2></div>
+              <div id="messageList" class="list"></div>
+            </section>
+            <section class="panel">
               <div class="panel-title"><h2>Progress</h2></div>
               <div id="progressCard" class="progress-card"></div>
             </section>
@@ -126,6 +130,7 @@
         </section>
       </main>
     </div>
+    <button id="floatingMessages" class="floating-message" title="Messages" aria-label="Messages"></button>
     <div id="toast" class="toast hidden"></div>
     <script src="/static/app.js"></script>
   </body>

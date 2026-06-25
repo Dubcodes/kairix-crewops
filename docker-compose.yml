@@ -7,7 +7,7 @@ services:
       - path: .env
         required: false
     environment:
-      APP_NAME: ${APP_NAME:-Kairix CrewOps}
+      APP_NAME: ${APP_NAME:-CrewOps}
       ENVIRONMENT: ${ENVIRONMENT:-production}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in the Portainer stack environment}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-720}

@@ -44,6 +44,7 @@ DEFAULT_SETTINGS = {
         "integrations",
         "audit",
         "settings",
+        "admin_system",
     ],
     "onboarding_mode": "region_approval",
     "xp_settings": {"task_default": 5, "attendance_default": 3, "new_member_level_threshold": 2, "level_thresholds": [0, 50, 150, 300, 600]},

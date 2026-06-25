@@ -33,12 +33,28 @@ def list_messages(thread_id: str, db: Session = Depends(get_db), current_user: m
 
 @router.post("/threads/{thread_id}/messages")
 def create_message(thread_id: str, payload: schemas.MessageCreate, request: Request, db: Session = Depends(get_db), current_user: models.User = Depends(require_active_user)):
-    if not db.query(models.MessageThread).filter(models.MessageThread.id == thread_id).first():
+    thread = db.query(models.MessageThread).filter(models.MessageThread.id == thread_id).first()
+    if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
     message = models.Message(thread_id=thread_id, sender_id=current_user.id, body=payload.body, created_by_id=current_user.id, updated_by_id=current_user.id)
     db.add(message)
     db.flush()
-    audit_log(db, action="message.create", target_type="Message", target_id=message.id, actor=current_user, request=request)
+    notification_sent = False
+    if thread.created_by_id and thread.created_by_id != current_user.id:
+        db.add(
+            models.Notification(
+                user_id=thread.created_by_id,
+                title=f"New message in {thread.title}",
+                body=payload.body[:220],
+                notification_type="message",
+                target_url="/messages",
+                created_by_id=current_user.id,
+                updated_by_id=current_user.id,
+            )
+        )
+        notification_sent = True
+    thread.updated_by_id = current_user.id
+    audit_log(db, action="message.create", target_type="Message", target_id=message.id, actor=current_user, request=request, notification_sent=notification_sent)
     db.commit()
     db.refresh(message)
     return model_to_dict(message)

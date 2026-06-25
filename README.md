@@ -1,6 +1,6 @@
-# Kairix CrewOps
+# CrewOps
 
-Kairix CrewOps is a self-hosted operations backend for community, film, nonprofit, club, and volunteer organisations. It is designed to be run in Docker/Portainer with PostgreSQL and local persistent upload/backup volumes.
+CrewOps is a self-hosted operations backend for community, film, nonprofit, club, and volunteer organisations. It is designed to be run in Docker/Portainer with PostgreSQL and local persistent upload/backup volumes.
 
 The application provides:
 
@@ -47,7 +47,7 @@ Use `docker-compose.yml` as the stack file. Keep the `crewops_uploads`, `crewops
 Required stack environment values:
 
 ```env
-APP_NAME=Kairix CrewOps
+APP_NAME=CrewOps
 ENVIRONMENT=production
 SECRET_KEY=replace-with-a-long-random-secret
 ACCESS_TOKEN_EXPIRE_MINUTES=720

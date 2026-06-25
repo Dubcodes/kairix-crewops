@@ -319,6 +319,25 @@ h2 {
   gap: 1rem;
 }
 
+.task-layout,
+.messages-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.35fr) minmax(240px, 0.7fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.task-layout {
+  grid-template-columns: minmax(320px, 1fr) minmax(360px, 0.85fr);
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
 .wide {
   grid-column: 1 / -1;
 }
@@ -352,6 +371,37 @@ h2 {
 .item-button.selected {
   border-color: var(--accent);
   box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.task-card {
+  position: relative;
+  padding-left: 2.1rem;
+}
+
+.task-card.overdue {
+  border-color: var(--warn);
+}
+
+.status-dot {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.95rem;
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.status-dot.done {
+  background: var(--accent);
+}
+
+.status-dot.halted {
+  background: var(--warn);
+}
+
+.status-dot.cancelled {
+  background: var(--danger);
 }
 
 .item strong {
@@ -423,6 +473,143 @@ h2 {
   justify-content: flex-end;
 }
 
+.tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+}
+
+.tab-row button {
+  padding: 0.42rem 0.62rem;
+  color: var(--muted);
+}
+
+.tab-row button.active {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+}
+
+.detail-grid {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 0.8rem;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.85rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.45rem;
+}
+
+.detail-row span {
+  color: var(--muted);
+}
+
+.detail-row strong {
+  text-align: right;
+}
+
+.detail-note {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.messages-layout {
+  min-height: calc(100vh - 150px);
+}
+
+.conversation-list-panel,
+.message-main-panel,
+.conversation-detail-panel,
+.task-list-panel,
+.task-detail-panel {
+  min-width: 0;
+}
+
+.conversation-row {
+  position: relative;
+  padding-left: 3.1rem;
+}
+
+.conversation-avatar {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.8rem;
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+.conversation-groups h3 {
+  margin: 0.9rem 0 0.5rem;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.conversation-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.conversation-header p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.message-history {
+  display: grid;
+  gap: 0.65rem;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.message-bubble {
+  max-width: 82%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.7rem;
+  background: #fbfcfb;
+}
+
+.message-bubble.own {
+  justify-self: end;
+  background: var(--accent-soft);
+}
+
+.message-bubble p {
+  margin: 0.35rem 0;
+}
+
+.message-bubble span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.message-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+}
+
+.message-composer textarea {
+  min-height: 54px;
+}
+
 .form-grid {
   display: grid;
   gap: 0.75rem;
@@ -468,6 +655,12 @@ h2 {
   background: var(--accent);
 }
 
+.help-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.1fr);
+  gap: 1rem;
+}
+
 .help-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -475,11 +668,23 @@ h2 {
 }
 
 .help-item {
+  display: grid;
+  text-align: left;
+  gap: 0.35rem;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfb;
   padding: 0.85rem;
   min-width: 0;
+}
+
+.help-item.active {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.help-item .ui-icon {
+  color: var(--accent);
 }
 
 .help-item h3 {
@@ -492,6 +697,36 @@ h2 {
   color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.45;
+}
+
+.help-article {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem;
+  background: #fbfcfb;
+  min-width: 0;
+}
+
+.floating-message {
+  position: fixed;
+  right: 1rem;
+  bottom: 5rem;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+  opacity: 0.55;
+  box-shadow: 0 12px 30px rgba(15, 118, 110, 0.25);
+}
+
+.floating-message:hover,
+.floating-message:focus-visible {
+  opacity: 1;
 }
 
 .pill-row {
@@ -554,6 +789,9 @@ h2 {
 
   .grid,
   .module-layout,
+  .task-layout,
+  .messages-layout,
+  .help-layout,
   .split {
     grid-template-columns: 1fr;
   }
@@ -564,6 +802,18 @@ h2 {
 
   nav {
     grid-template-columns: repeat(auto-fit, minmax(146px, 1fr));
+  }
+
+  .conversation-detail-panel {
+    order: 3;
+  }
+
+  .message-composer {
+    grid-template-columns: 1fr;
+  }
+
+  .message-bubble {
+    max-width: 100%;
   }
 
   .xp,
