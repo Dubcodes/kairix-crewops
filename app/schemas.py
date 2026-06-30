@@ -178,10 +178,17 @@ class RoleSlotCreate(BaseModel):
     required_training: list[str] = Field(default_factory=list)
 
 
+class TaskAssignmentGroup(BaseModel):
+    source_type: str
+    source_id: str
+
+
 class TaskCreate(BaseModel):
     title: str
     description: str | None = None
     assigned_to_id: str | None = None
+    assignee_ids: list[str] = Field(default_factory=list)
+    assignment_groups: list[TaskAssignmentGroup] = Field(default_factory=list)
     due_at: datetime | None = None
     priority: str = "Normal"
     status: str = "To Do"
@@ -191,6 +198,7 @@ class TaskCreate(BaseModel):
     sensitivity: str = "Internal"
     xp_value: int = 0
     requires_approval: bool = False
+    assignment_mode: str = "first_completer"
     checklist: list[Any] = Field(default_factory=list)
 
 
@@ -198,6 +206,8 @@ class TaskUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
     assigned_to_id: str | None = None
+    assignee_ids: list[str] | None = None
+    assignment_groups: list[TaskAssignmentGroup] | None = None
     due_at: datetime | None = None
     priority: str | None = None
     status: str | None = None
@@ -207,6 +217,7 @@ class TaskUpdate(BaseModel):
     sensitivity: str | None = None
     xp_value: int | None = None
     requires_approval: bool | None = None
+    assignment_mode: str | None = None
     checklist: list[Any] | None = None
 
 
@@ -214,6 +225,7 @@ class TaskOut(BaseOut):
     title: str
     description: str | None
     assigned_to_id: str | None
+    assignee_ids: list[str] = Field(default_factory=list)
     due_at: datetime | None
     priority: str
     status: str
@@ -223,6 +235,11 @@ class TaskOut(BaseOut):
     created_by_id: str | None
     updated_by_id: str | None
     completed_by_id: str | None
+    completed_at: datetime | None
+    halted_by_id: str | None
+    halted_at: datetime | None
+    halted_reason: str | None
+    assignment_mode: str
 
 
 class EventCreate(BaseModel):
@@ -357,6 +374,7 @@ class LinkRecordCreate(BaseModel):
 
 class MessageThreadCreate(BaseModel):
     title: str
+    participant_ids: list[str] = Field(default_factory=list)
     thread_type: str = "direct"
     attached_entity_type: str | None = None
     attached_entity_id: str | None = None
@@ -396,6 +414,8 @@ class NotificationCreate(BaseModel):
     title: str
     body: str | None = None
     notification_type: str = "general"
+    target_type: str | None = None
+    target_id: str | None = None
     target_url: str | None = None
 
 

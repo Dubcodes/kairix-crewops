@@ -93,6 +93,11 @@ body.auth-locked .topbar {
   display: none;
 }
 
+body.auth-locked .floating-message,
+body.auth-locked .floating-message-panel {
+  display: none;
+}
+
 body.auth-locked .shell {
   min-height: 100vh;
 }
@@ -207,6 +212,85 @@ nav button:hover {
   display: flex;
   align-items: center;
   gap: 0.55rem;
+}
+
+.notification-anchor {
+  position: relative;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  display: grid;
+  place-items: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.25rem;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--danger);
+  color: white;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.notification-popover {
+  position: absolute;
+  top: calc(100% + 0.65rem);
+  right: 0;
+  z-index: 5;
+  width: min(390px, calc(100vw - 2rem));
+  max-height: 70vh;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 18px 50px rgba(17, 24, 39, 0.2);
+  padding: 0.75rem;
+}
+
+.notification-popover-head,
+.floating-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.notification-popover-head span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.notification-preview-list,
+.notification-list,
+.floating-thread-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.notification-preview,
+.notification-open {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  text-align: left;
+}
+
+.notification-preview.unread,
+.notification-item.unread {
+  border-color: var(--accent);
+  background: #f2faf8;
+}
+
+.notification-preview span,
+.notification-preview time,
+.notification-open span,
+.notification-open time {
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .xp {
@@ -518,6 +602,65 @@ h2 {
   line-height: 1.45;
 }
 
+.halted-note {
+  border-left: 3px solid var(--warn);
+  background: #fff8ed;
+  padding: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+
+.halted-note p {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+}
+
+.assignment-picker {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.suggestion-list {
+  display: grid;
+  gap: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.45rem;
+  background: var(--surface);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.suggestion-list button {
+  display: grid;
+  gap: 0.15rem;
+  text-align: left;
+}
+
+.suggestion-list button span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.selection-chip {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  padding: 0.35rem 0.55rem;
+}
+
+.group-picker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.55rem;
+}
+
 .messages-layout {
   min-height: calc(100vh - 150px);
 }
@@ -533,6 +676,24 @@ h2 {
 .conversation-row {
   position: relative;
   padding-left: 3.1rem;
+}
+
+.unread-count {
+  position: absolute;
+  right: 0.65rem;
+  top: 0.65rem;
+  display: grid;
+  place-items: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: white !important;
+  font-size: 0.7rem !important;
+}
+
+.mobile-back {
+  display: none;
 }
 
 .conversation-avatar {
@@ -707,6 +868,20 @@ h2 {
   min-width: 0;
 }
 
+.notification-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.45rem;
+}
+
+.notification-item.read {
+  opacity: 0.78;
+}
+
 .floating-message {
   position: fixed;
   right: 1rem;
@@ -722,6 +897,45 @@ h2 {
   color: white;
   opacity: 0.55;
   box-shadow: 0 12px 30px rgba(15, 118, 110, 0.25);
+}
+
+.floating-message-panel {
+  position: fixed;
+  right: 1rem;
+  bottom: 8.6rem;
+  z-index: 4;
+  width: min(340px, calc(100vw - 2rem));
+  max-height: 60vh;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: var(--surface);
+  box-shadow: 0 18px 50px rgba(17, 24, 39, 0.2);
+}
+
+.floating-message-panel input {
+  margin-bottom: 0.6rem;
+}
+
+.floating-thread-list button {
+  position: relative;
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+}
+
+.floating-thread-list button span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  padding-right: 1.5rem;
+}
+
+.floating-thread-list button b {
+  position: absolute;
+  right: 0.5rem;
+  top: 0.5rem;
+  color: var(--accent);
 }
 
 .floating-message:hover,
@@ -806,6 +1020,23 @@ h2 {
 
   .conversation-detail-panel {
     order: 3;
+  }
+
+  .messages-layout .message-main-panel,
+  .messages-layout .conversation-detail-panel {
+    display: none;
+  }
+
+  .messages-layout.chat-open .conversation-list-panel {
+    display: none;
+  }
+
+  .messages-layout.chat-open .message-main-panel {
+    display: block;
+  }
+
+  .mobile-back {
+    display: inline-flex;
   }
 
   .message-composer {

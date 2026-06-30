@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from .. import models, schemas
 from ..database import get_db
 from ..deps import require_active_user
-from ..permissions import is_admin, seed_permission_tags
+from ..permissions import FINANCE_TAGS, HR_TAGS, can_access_finance, can_access_hr, is_admin, seed_permission_tags, user_tag_names
 from ..routers.auth import user_out
 from ..security import get_password_hash
 from ..services.audit import audit_log
@@ -15,10 +16,34 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get("", response_model=list[schemas.UserOut])
 def list_users(q: str | None = None, db: Session = Depends(get_db), current_user: models.User = Depends(require_active_user)):
     query = db.query(models.User).options(joinedload(models.User.permission_tags).joinedload(models.UserPermissionTag.permission_tag))
+    if not is_admin(current_user):
+        query = query.filter(
+            or_(
+                models.User.id == current_user.id,
+                (models.User.search_visibility != "private") & (models.User.message_privacy != "private"),
+            )
+        )
     if q:
+        if len(q.strip()) < 2:
+            return []
         like = f"%{q}%"
         query = query.filter((models.User.display_name.ilike(like)) | (models.User.username.ilike(like)) | (models.User.email.ilike(like)))
-    return [user_out(user) for user in query.order_by(models.User.display_name).limit(100).all()]
+    users = query.order_by(models.User.display_name).limit(100).all()
+    if not is_admin(current_user):
+        hidden_system_tags = {"Administrator", "System Owner", "Data Management"}
+        can_see_hr = can_access_hr(current_user)
+        can_see_finance = can_access_finance(current_user)
+        users = [
+            user
+            for user in users
+            if user.id == current_user.id
+            or not (
+                user_tag_names(user) & hidden_system_tags
+                or (user_tag_names(user) & HR_TAGS and not can_see_hr)
+                or (user_tag_names(user) & FINANCE_TAGS and not can_see_finance)
+            )
+        ]
+    return [user_out(user) for user in users]
 
 
 @router.post("", response_model=schemas.UserOut)
@@ -87,4 +112,3 @@ def add_permission_tag(user_id: str, tag_name: str, request: Request, db: Sessio
     audit_log(db, action="permission_tag.add", target_type="User", target_id=user_id, actor=current_user, new_value={"tag": tag_name}, request=request)
     db.commit()
     return {"ok": True}
-

@@ -252,8 +252,38 @@ class Task(EntityMixin, Base):
     xp_value: Mapped[int] = mapped_column(Integer, default=0)
     requires_approval: Mapped[bool] = mapped_column(Boolean, default=False)
     completed_by_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    halted_by_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True)
+    halted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    halted_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    xp_awarded_record_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("xp_records.id"), nullable=True)
+    assignment_mode: Mapped[str] = mapped_column(String(40), default="first_completer")
     approved_by_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True)
     checklist: Mapped[list] = mapped_column(JSON, default=list)
+
+    assignees: Mapped[list["TaskAssignee"]] = relationship(back_populates="task", cascade="all, delete-orphan")
+
+    @property
+    def assignee_ids(self) -> list[str]:
+        ids = [assignment.user_id for assignment in self.assignees]
+        if self.assigned_to_id and self.assigned_to_id not in ids:
+            ids.insert(0, self.assigned_to_id)
+        return ids
+
+
+class TaskAssignee(EntityMixin, Base):
+    __tablename__ = "task_assignees"
+    __table_args__ = (UniqueConstraint("task_id", "user_id", name="uq_task_assignee"),)
+
+    task_id: Mapped[str] = mapped_column(String(36), ForeignKey("tasks.id"))
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
+    assignment_source_type: Mapped[str] = mapped_column(String(60), default="direct")
+    assignment_source_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    assigned_by_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
+    status: Mapped[str] = mapped_column(String(40), default="Assigned")
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    task: Mapped[Task] = relationship(back_populates="assignees")
 
 
 class CalendarEvent(EntityMixin, Base):
@@ -445,6 +475,25 @@ class MessageThread(EntityMixin, Base):
     visibility: Mapped[str] = mapped_column(String(60), default="Internal")
     moderated: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    participants: Mapped[list["MessageThreadParticipant"]] = relationship(back_populates="thread", cascade="all, delete-orphan")
+
+    @property
+    def participant_ids(self) -> list[str]:
+        return [participant.user_id for participant in self.participants]
+
+
+class MessageThreadParticipant(EntityMixin, Base):
+    __tablename__ = "message_thread_participants"
+    __table_args__ = (UniqueConstraint("thread_id", "user_id", name="uq_message_thread_participant"),)
+
+    thread_id: Mapped[str] = mapped_column(String(36), ForeignKey("message_threads.id"))
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
+    last_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    role: Mapped[str] = mapped_column(String(40), default="member")
+    status: Mapped[str] = mapped_column(String(40), default="Active")
+
+    thread: Mapped[MessageThread] = relationship(back_populates="participants")
+
 
 class Message(EntityMixin, Base):
     __tablename__ = "messages"
@@ -559,6 +608,8 @@ class Notification(EntityMixin, Base):
     title: Mapped[str] = mapped_column(String(240))
     body: Mapped[str | None] = mapped_column(Text, nullable=True)
     notification_type: Mapped[str] = mapped_column(String(80), default="general")
+    target_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    target_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     target_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 

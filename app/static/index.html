@@ -27,7 +27,11 @@
             <div class="topbar-right">
               <div class="xp"><span id="xpFill"></span></div>
               <span id="levelLabel">Level 1</span>
-            <button class="icon-button" id="notificationButton" title="Notifications" aria-label="Notifications"></button>
+            <div class="notification-anchor">
+              <button class="icon-button" id="notificationButton" title="Notifications" aria-label="Notifications"></button>
+              <span id="notificationBadge" class="notification-badge hidden">0</span>
+              <div id="notificationPopover" class="notification-popover hidden" aria-label="Recent notifications"></div>
+            </div>
             <button class="icon-button" id="helpButton" title="Help" aria-label="Help"></button>
             <button class="icon-button" id="settingsButton" title="Settings" aria-label="Settings"></button>
             <button class="avatar" id="avatar">?</button>
@@ -130,6 +134,7 @@
         </section>
       </main>
     </div>
+    <div id="floatingMessagePanel" class="floating-message-panel hidden"></div>
     <button id="floatingMessages" class="floating-message" title="Messages" aria-label="Messages"></button>
     <div id="toast" class="toast hidden"></div>
     <script src="/static/app.js"></script>

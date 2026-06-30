@@ -8,8 +8,14 @@ const state = {
   selectedTaskId: null,
   taskFilter: "assigned",
   taskPanel: "view",
+  taskAssigneeIds: [],
+  taskAssignmentGroups: [],
   selectedThreadId: null,
   messagePanel: "thread",
+  messageRecipientIds: [],
+  notificationFilter: "unread",
+  notificationOpen: false,
+  floatingMessagesOpen: false,
   selectedHelpId: null,
 };
 
@@ -327,6 +333,10 @@ function resetAuth() {
   state.me = null;
   state.reauth = {};
   state.selectedTaskId = null;
+  state.notificationOpen = false;
+  state.floatingMessagesOpen = false;
+  $("notificationPopover").classList.add("hidden");
+  $("floatingMessagePanel").classList.add("hidden");
   $("moduleContent").innerHTML = "";
   $("moduleGrid").innerHTML = "";
   setAuthenticatedUi(false);
@@ -415,12 +425,16 @@ function userName(id) {
   return user?.display_name || (id ? compactId(id) : "Unassigned");
 }
 
+function userNames(ids = []) {
+  return ids.length ? ids.map(userName).join(", ") : "Unassigned";
+}
+
 function taskLinkedLabel(task) {
   return task.attached_entity_type ? [task.attached_entity_type, compactId(task.attached_entity_id)].filter(Boolean).join(" ") : "General";
 }
 
 function canEditTask(task) {
-  return isAdministrator() || task.created_by_id === state.me?.id || task.assigned_to_id === state.me?.id;
+  return isAdministrator() || task.created_by_id === state.me?.id || (task.assignee_ids || []).includes(state.me?.id) || task.assigned_to_id === state.me?.id;
 }
 
 function isOverdueTask(task) {
@@ -432,7 +446,7 @@ function filterTasks(tasks) {
   const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   return tasks.filter((task) => {
     const status = statusLabel(task.status);
-    if (state.taskFilter === "assigned") return task.assigned_to_id === state.me?.id && !isDoneStatus(task.status) && status !== "Cancelled";
+    if (state.taskFilter === "assigned") return ((task.assignee_ids || []).includes(state.me?.id) || task.assigned_to_id === state.me?.id) && !isDoneStatus(task.status) && status !== "Cancelled";
     if (state.taskFilter === "created") return task.created_by_id === state.me?.id;
     if (state.taskFilter === "all") return true;
     if (state.taskFilter === "done") return isDoneStatus(task.status);
@@ -450,7 +464,7 @@ function taskListItem(task) {
   const meta = [
     status,
     task.priority,
-    `Assigned to ${userName(task.assigned_to_id)}`,
+    `Assigned to ${userNames(task.assignee_ids || (task.assigned_to_id ? [task.assigned_to_id] : []))}`,
     `Created by ${userName(task.created_by_id)}`,
     task.due_at ? `Due ${formatDate(task.due_at)}` : "",
     taskLinkedLabel(task),
@@ -564,15 +578,27 @@ async function renderResourceModule(id) {
 }
 
 async function renderTasksModule() {
-  const [tasks, users] = await Promise.all([
+  const [tasks, users, regions, teams, permissions, projects, events] = await Promise.all([
     api("/tasks?assigned_to_me=false").catch((error) => {
       toast(error.message);
       return [];
     }),
     api("/users").catch(() => []),
+    api("/org/regions").catch(() => []),
+    api("/org/teams").catch(() => []),
+    api("/org/permissions").catch(() => []),
+    api("/projects").catch(() => []),
+    api("/calendar/events").catch(() => []),
   ]);
   state.data.tasks = tasks;
   state.data.users = users;
+  state.data.taskGroups = [
+    ...regions.map((row) => ({ type: "region", id: row.id, label: `Region: ${row.name}` })),
+    ...teams.map((row) => ({ type: "team", id: row.id, label: `Team: ${row.name}` })),
+    ...permissions.filter((row) => (row.category !== "hr" || canAccessModule("hr")) && (row.category !== "finance" || canAccessModule("finance"))).map((row) => ({ type: "permission_tag", id: row.id, label: `Role: ${row.name}` })),
+    ...projects.map((row) => ({ type: "project", id: row.id, label: `Project: ${row.title}` })),
+    ...events.map((row) => ({ type: "event", id: row.id, label: `Event: ${row.title}` })),
+  ];
   const filtered = filterTasks(tasks);
   if (state.selectedTaskId && !filtered.some((task) => task.id === state.selectedTaskId)) {
     state.selectedTaskId = null;
@@ -644,7 +670,7 @@ function renderTaskCreateForm(users = []) {
   return `<form class="form-grid" data-create-endpoint="/tasks" data-module="tasks">
     ${fieldHtml({ name: "title", label: "Title", required: true })}
     ${fieldHtml({ name: "description", label: "Description", type: "textarea" })}
-    ${fieldHtml({ name: "assigned_to_id", label: "Assigned to", type: "user-select" }, { users })}
+    ${renderTaskAssignmentPicker(users)}
     ${fieldHtml({ name: "due_at", label: "Due date", type: "datetime-local" })}
     ${fieldHtml({ name: "priority", label: "Priority", type: "select", options: ["Low", "Normal", "High", "Urgent"], value: "Normal" })}
     ${fieldHtml({ name: "attached_entity_type", label: "Linked record type", type: "select", options: ["General", "Project", "Event", "Member", "Equipment", "Finance", "HR", "File"], value: "General" })}
@@ -663,7 +689,7 @@ function renderTaskDetails(task) {
       <span class="pill">${escapeHtml(status)}</span>
     </div>
     <div class="detail-grid">
-      ${detailRow("Assigned to", userName(task.assigned_to_id))}
+      ${detailRow("Assigned to", userNames(task.assignee_ids || (task.assigned_to_id ? [task.assigned_to_id] : [])))}
       ${detailRow("Created by", userName(task.created_by_id))}
       ${detailRow("Due", formatDate(task.due_at) || "No due date")}
       ${detailRow("Priority", task.priority || "Normal")}
@@ -671,8 +697,9 @@ function renderTaskDetails(task) {
       ${detailRow("XP", task.xp_value ? `${task.xp_value} XP` : "No XP set")}
     </div>
     ${task.description ? `<p class="detail-note">${escapeHtml(task.description)}</p>` : ""}
+    ${task.halted_reason ? `<div class="halted-note"><strong>Halted reason</strong><p>${escapeHtml(task.halted_reason)}</p></div>` : ""}
     <div class="actions task-actions">
-      ${!isDoneStatus(task.status) ? `<button class="primary" type="button" data-task-status-id="${escapeHtml(task.id)}" data-task-status="Done" title="Mark this task done">Done</button>` : `<button type="button" data-task-status-id="${escapeHtml(task.id)}" data-task-status="To Do" title="Reopen this task">Reopen</button>`}
+      ${!isDoneStatus(task.status) ? `<button class="primary" type="button" data-task-status-id="${escapeHtml(task.id)}" data-task-status="Done" title="Mark this task as complete. If you are assigned to this task, you may receive XP.">Done</button>` : `<button type="button" data-task-status-id="${escapeHtml(task.id)}" data-task-status="To Do" title="Reopen this task">Reopen</button>`}
       <button type="button" data-task-panel="halt" title="Record why this task cannot continue on time">Halted</button>
       ${canEditTask(task) ? `<button type="button" data-task-panel="edit" title="Edit task details">Edit</button>` : ""}
     </div>`;
@@ -683,7 +710,7 @@ function renderTaskEditPanel(task, users = []) {
     <form class="form-grid" data-update-endpoint="/tasks/${escapeHtml(task.id)}" data-module="tasks">
       ${fieldHtml({ name: "title", label: "Title", required: true, value: task.title || "" })}
       ${fieldHtml({ name: "description", label: "Description", type: "textarea", value: task.description || "" })}
-      ${fieldHtml({ name: "assigned_to_id", label: "Assigned to", type: "user-select", value: task.assigned_to_id || "" }, { users })}
+      ${renderTaskAssignmentPicker(users)}
       ${fieldHtml({ name: "due_at", label: "Due date", type: "datetime-local", value: formatDatetimeLocal(task.due_at) })}
       ${fieldHtml({ name: "priority", label: "Priority", type: "select", options: ["Low", "Normal", "High", "Urgent"], value: task.priority || "Normal" })}
       ${fieldHtml({ name: "status", label: "Status", type: "select", options: ["To Do", "In Progress", "Halted", "Done", "Cancelled"], value: statusLabel(task.status) })}
@@ -707,6 +734,47 @@ function renderTaskHaltPanel(task) {
 
 function detailRow(label, value) {
   return `<div class="detail-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "")}</strong></div>`;
+}
+
+function renderTaskAssignmentPicker(users = []) {
+  const selectedUsers = state.taskAssigneeIds.map((id) => users.find((user) => user.id === id)).filter(Boolean);
+  const selectedGroups = state.taskAssignmentGroups.map((selected) => {
+    const group = (state.data.taskGroups || []).find((row) => row.type === selected.source_type && row.id === selected.source_id);
+    return { ...selected, label: group?.label || `${selected.source_type}: ${selected.source_id}` };
+  });
+  return `<div class="assignment-picker">
+    <label>Add person<input type="search" data-task-person-search autocomplete="off" aria-label="Search people to assign" /></label>
+    <div class="suggestion-list hidden" data-task-person-suggestions></div>
+    <div class="chip-row">
+      ${selectedUsers.map((user) => `<button type="button" class="selection-chip" data-remove-task-assignee="${escapeHtml(user.id)}" title="Remove ${escapeHtml(user.display_name)}">${escapeHtml(user.display_name)} ×</button>`).join("")}
+    </div>
+    <div class="group-picker-row">
+      <label>Add group or tag<select data-task-group-select><option value="">Choose a group or tag</option>${(state.data.taskGroups || []).map((group) => `<option value="${escapeHtml(`${group.type}:${group.id}`)}">${escapeHtml(group.label)}</option>`).join("")}</select></label>
+      <button type="button" data-add-task-group>Add</button>
+    </div>
+    <div class="chip-row">
+      ${selectedGroups.map((group) => `<button type="button" class="selection-chip" data-remove-task-group="${escapeHtml(`${group.source_type}:${group.source_id}`)}" title="Remove ${escapeHtml(group.label)}">${escapeHtml(group.label)} ×</button>`).join("")}
+    </div>
+  </div>`;
+}
+
+function refreshTaskAssignmentPickerView() {
+  const picker = $("moduleContent").querySelector(".task-detail-panel .assignment-picker");
+  if (picker) picker.outerHTML = renderTaskAssignmentPicker(state.data.users || []);
+}
+
+function renderPersonSuggestions(container, query, users, actionAttribute, excludedIds = []) {
+  const needle = query.trim().toLowerCase();
+  if (needle.length < 2) {
+    container.innerHTML = "";
+    container.classList.add("hidden");
+    return;
+  }
+  const matches = users.filter((user) => !excludedIds.includes(user.id) && [user.display_name, user.username, user.email].some((value) => String(value || "").toLowerCase().includes(needle))).slice(0, 8);
+  container.innerHTML = matches.length
+    ? matches.map((user) => `<button type="button" ${actionAttribute}="${escapeHtml(user.id)}"><strong>${escapeHtml(user.display_name)}</strong><span>${escapeHtml(user.username)}</span></button>`).join("")
+    : renderEmpty("No accessible people found.");
+  container.classList.remove("hidden");
 }
 
 async function renderRegionsModule() {
@@ -950,6 +1018,9 @@ async function renderIntegrationsModule() {
 }
 
 async function renderMessagesModule() {
+  if (state.selectedThreadId && state.messagePanel === "thread") {
+    await api(`/messages/threads/${state.selectedThreadId}/read`, { method: "POST" }).catch(() => {});
+  }
   const [threads, users] = await Promise.all([
     api("/messages/threads").catch((error) => {
       toast(error.message);
@@ -958,21 +1029,14 @@ async function renderMessagesModule() {
     api("/users").catch(() => []),
   ]);
   state.data.users = users;
-  const threadMessages = {};
-  await Promise.all(
-    threads.slice(0, 20).map(async (thread) => {
-      threadMessages[thread.id] = await api(`/messages/threads/${thread.id}/messages`).catch(() => []);
-    })
-  );
   state.data.messageThreads = threads;
-  state.data.threadMessages = threadMessages;
   if (state.selectedThreadId && !threads.some((thread) => thread.id === state.selectedThreadId)) state.selectedThreadId = null;
   const selectedThread = threads.find((thread) => thread.id === state.selectedThreadId) || threads[0] || null;
   if (!state.selectedThreadId && selectedThread) state.selectedThreadId = selectedThread.id;
-  const selectedMessages = selectedThread ? threadMessages[selectedThread.id] || (await api(`/messages/threads/${selectedThread.id}/messages`).catch(() => [])) : [];
+  const selectedMessages = selectedThread ? await api(`/messages/threads/${selectedThread.id}/messages`).catch(() => []) : [];
 
   $("moduleContent").innerHTML = `
-    <div class="messages-layout">
+    <div class="messages-layout ${selectedThread && state.messagePanel === "thread" ? "chat-open" : ""}">
       <section class="panel conversation-list-panel">
         <div class="panel-title">
           <h2>Conversations</h2>
@@ -982,7 +1046,7 @@ async function renderMessagesModule() {
         <div class="conversation-groups">
           <h3>Recent</h3>
           <div class="list conversation-list">
-            ${threads.length ? threads.map((thread) => threadListItem(thread, threadMessages[thread.id] || [])).join("") : renderEmpty("No message threads yet. Start a conversation.")}
+            ${threads.length ? threads.map(threadListItem).join("") : renderEmpty("No message threads yet. Start a conversation.")}
           </div>
         </div>
       </section>
@@ -995,15 +1059,15 @@ async function renderMessagesModule() {
     </div>`;
 }
 
-function threadListItem(thread, messages = []) {
-  const recentMessage = messages[messages.length - 1];
+function threadListItem(thread) {
   const selected = state.selectedThreadId === thread.id ? " selected" : "";
   const label = threadTypeLabel(thread.thread_type);
-  const meta = [recentMessage?.body || "No messages yet", formatDate(recentMessage?.created_at || thread.updated_at), label].filter(Boolean).join(" · ");
+  const meta = [thread.latest_message || "No messages yet", formatDate(thread.latest_message_at || thread.updated_at), label].filter(Boolean).join(" · ");
   return `<button type="button" class="item item-button conversation-row${selected}" data-thread-id="${escapeHtml(thread.id)}" title="Open conversation">
     <span class="conversation-avatar">${escapeHtml((thread.title || "?").slice(0, 1).toUpperCase())}</span>
     <strong>${escapeHtml(thread.title || "Untitled conversation")}</strong>
     <span>${escapeHtml(meta)}</span>
+    ${thread.unread_count ? `<span class="unread-count">${escapeHtml(thread.unread_count)}</span>` : ""}
   </button>`;
 }
 
@@ -1023,6 +1087,7 @@ function renderConversationPanel(thread, messages = []) {
   if (!thread) return `<div class="panel-title"><h2>Messages</h2></div>${renderEmpty("No message threads yet. Start a conversation.")}`;
   return `<div class="conversation-view">
     <div class="conversation-header">
+      <button type="button" class="mobile-back" data-message-back title="Back to conversations">Back</button>
       <div>
         <h2>${escapeHtml(thread.title)}</h2>
         <p>${escapeHtml(threadTypeLabel(thread.thread_type))}</p>
@@ -1052,8 +1117,8 @@ function renderMessageBubble(message) {
 function renderNewMessagePanel(users = []) {
   return `<div class="panel-title"><h2>New message</h2><button type="button" data-message-panel="thread">Cancel</button></div>
     <form class="form-grid" data-new-conversation>
-      <label>Recipient, group, project, or event<input name="title" required list="messageTargets" /></label>
-      <datalist id="messageTargets">${users.map((user) => `<option value="${escapeHtml(user.display_name)}"></option>`).join("")}</datalist>
+      ${renderMessageRecipientPicker(users)}
+      <label>Conversation name<input name="title" /></label>
       <label>Conversation category<select name="thread_type">
         <option value="direct">Direct message</option>
         <option value="group">Group message</option>
@@ -1073,14 +1138,146 @@ function renderNewMessagePanel(users = []) {
     </form>`;
 }
 
+function renderMessageRecipientPicker(users = []) {
+  return `<div class="assignment-picker message-recipient-picker">
+    <label>Find people<input type="search" data-message-person-search autocomplete="off" aria-label="Search message recipients" /></label>
+    <div class="suggestion-list hidden" data-message-person-suggestions></div>
+    <div class="chip-row">${state.messageRecipientIds.map((id) => users.find((user) => user.id === id)).filter(Boolean).map((user) => `<button type="button" class="selection-chip" data-remove-message-recipient="${escapeHtml(user.id)}">${escapeHtml(user.display_name)} ×</button>`).join("")}</div>
+  </div>`;
+}
+
+function refreshMessageRecipientPickerView() {
+  const picker = $("moduleContent").querySelector(".message-recipient-picker");
+  if (picker) picker.outerHTML = renderMessageRecipientPicker(state.data.users || []);
+}
+
 function renderConversationDetails(thread) {
   return `<div class="panel-title"><h2>Details</h2></div>
     <div class="detail-grid">
       ${detailRow("Type", threadTypeLabel(thread.thread_type))}
       ${detailRow("Visibility", thread.visibility || "Internal")}
       ${detailRow("Linked record", thread.attached_entity_type ? [thread.attached_entity_type, compactId(thread.attached_entity_id)].filter(Boolean).join(" ") : "None")}
+      ${detailRow("Participants", userNames(thread.participant_ids || []))}
       ${detailRow("Updated", formatDate(thread.updated_at))}
     </div>`;
+}
+
+async function renderNotificationsModule() {
+  const notifications = await api("/notifications").catch((error) => {
+    toast(error.message);
+    return [];
+  });
+  state.data.notifications = notifications;
+  const filtered = notifications.filter((notification) => {
+    if (state.notificationFilter === "unread") return !notification.read_at;
+    if (state.notificationFilter === "task") return String(notification.notification_type).startsWith("task_");
+    if (state.notificationFilter === "message") return notification.notification_type === "message_received";
+    if (state.notificationFilter === "system") return !String(notification.notification_type).startsWith("task_") && notification.notification_type !== "message_received";
+    return true;
+  });
+  $("moduleContent").innerHTML = `<section class="panel notification-inbox">
+    <div class="panel-title">
+      <h2>Notifications</h2>
+      <button type="button" data-mark-all-notifications>Mark all read</button>
+    </div>
+    <div class="tab-row" role="tablist">
+      ${notificationFilterButton("unread", "Unread")}
+      ${notificationFilterButton("all", "All")}
+      ${notificationFilterButton("task", "Tasks")}
+      ${notificationFilterButton("message", "Messages")}
+      ${notificationFilterButton("system", "Approvals/System")}
+    </div>
+    <div class="notification-list">
+      ${filtered.length ? filtered.map(notificationInboxItem).join("") : renderEmpty(state.notificationFilter === "unread" ? "No unread notifications." : "No notifications in this view.")}
+    </div>
+  </section>`;
+}
+
+function notificationFilterButton(id, label) {
+  return `<button type="button" class="${state.notificationFilter === id ? "active" : ""}" data-notification-filter="${escapeHtml(id)}">${escapeHtml(label)}</button>`;
+}
+
+function notificationInboxItem(notification) {
+  return `<article class="notification-item ${notification.read_at ? "read" : "unread"}">
+    <button type="button" class="notification-open" data-open-notification="${escapeHtml(notification.id)}" data-target-url="${escapeHtml(notification.target_url || "")}">
+      <strong>${escapeHtml(notification.title)}</strong>
+      <span>${escapeHtml(notification.body || "")}</span>
+      <time>${escapeHtml(formatDate(notification.created_at))}</time>
+    </button>
+    ${notification.read_at ? "" : `<button type="button" data-read-notification="${escapeHtml(notification.id)}" title="Mark notification read">Mark read</button>`}
+  </article>`;
+}
+
+async function refreshNotificationPreview() {
+  if (!state.token || !state.me) return;
+  const notifications = await api("/notifications").catch(() => []);
+  state.data.notifications = notifications;
+  const unread = notifications.filter((notification) => !notification.read_at).length;
+  $("notificationBadge").textContent = unread > 99 ? "99+" : String(unread);
+  $("notificationBadge").classList.toggle("hidden", unread === 0);
+  $("notificationPopover").innerHTML = `<div class="notification-popover-head"><strong>Notifications</strong><span>${unread} unread</span></div>
+    <div class="notification-preview-list">
+      ${notifications.slice(0, 6).map((notification) => `<button type="button" class="notification-preview ${notification.read_at ? "read" : "unread"}" data-open-notification="${escapeHtml(notification.id)}" data-target-url="${escapeHtml(notification.target_url || "")}">
+        <strong>${escapeHtml(notification.title)}</strong><span>${escapeHtml(notification.body || "")}</span><time>${escapeHtml(formatDate(notification.created_at))}</time>
+      </button>`).join("") || renderEmpty("No notifications.")}
+    </div>
+    <button type="button" data-view-all-notifications>View all</button>`;
+}
+
+async function markNotificationRead(notificationId) {
+  await api(`/notifications/${notificationId}/read`, { method: "POST" });
+  await refreshNotificationPreview();
+}
+
+async function openNotification(notificationId, targetUrl) {
+  await markNotificationRead(notificationId).catch(() => {});
+  state.notificationOpen = false;
+  $("notificationPopover").classList.add("hidden");
+  if (targetUrl) {
+    window.location.hash = targetUrl.startsWith("#") ? targetUrl.slice(1) : targetUrl;
+    await navigateFromHash();
+  } else {
+    await renderNotificationsModule();
+  }
+}
+
+async function navigateFromHash() {
+  if (!requireSession()) return;
+  const [moduleId, recordId] = window.location.hash.replace(/^#/, "").split("/");
+  if (!moduleId) {
+    await renderModule("dashboard");
+    return;
+  }
+  if (moduleId === "tasks" && recordId) {
+    state.selectedTaskId = recordId;
+    state.taskFilter = "all";
+    state.taskPanel = "view";
+  }
+  if (moduleId === "messages" && recordId) {
+    state.selectedThreadId = recordId;
+    state.messagePanel = "thread";
+  }
+  await renderModule(moduleId);
+}
+
+async function refreshFloatingMessages() {
+  const threads = await api("/messages/threads").catch(() => []);
+  $("floatingMessagePanel").innerHTML = `<div class="floating-panel-head"><strong>Recent messages</strong><button type="button" data-open-message-module title="Open Messages">Open</button></div>
+    <label class="sr-only" for="floatingMessageSearch">Search recent conversations</label>
+    <input id="floatingMessageSearch" type="search" data-floating-message-search aria-label="Search recent conversations" />
+    <div class="floating-thread-list">
+      ${threads.slice(0, 6).map((thread) => `<button type="button" data-floating-thread-id="${escapeHtml(thread.id)}"><strong>${escapeHtml(thread.title)}</strong><span>${escapeHtml(thread.latest_message || "No messages yet")}</span>${thread.unread_count ? `<b>${escapeHtml(thread.unread_count)}</b>` : ""}</button>`).join("") || renderEmpty("No recent conversations.")}
+    </div>`;
+}
+
+async function refreshXpDisplay() {
+  const [me, xpStatus] = await Promise.all([api("/auth/me"), api("/xp/status")]);
+  state.me = me;
+  $("welcome").textContent = `Welcome, ${me.display_name}`;
+  $("avatar").textContent = me.display_name.slice(0, 1).toUpperCase();
+  $("levelLabel").textContent = `Level ${xpStatus.level} · ${xpStatus.xp_total} XP`;
+  $("xpFill").style.width = `${xpStatus.progress}%`;
+  return xpStatus;
 }
 
 async function renderAuditModule() {
@@ -1305,6 +1502,7 @@ async function renderModule(id) {
   else if (module.id === "equipment") await renderEquipmentModule();
   else if (module.id === "finance") await renderFinanceModule();
   else if (module.id === "messages") await renderMessagesModule();
+  else if (module.id === "notifications") await renderNotificationsModule();
   else if (resourceModules[module.id]) await renderResourceModule(module.id);
   else if (module.id === "regions") await renderRegionsModule();
   else if (module.id === "training") await renderTrainingModule();
@@ -1340,7 +1538,7 @@ function renderModules(settings) {
 
 async function loadDashboard() {
   if (!requireSession()) return;
-  const [settings, events, tasks, users, notifications, announcements, threads] = await Promise.all([
+  const [settings, events, tasks, users, notifications, announcements, threads, xpStatus] = await Promise.all([
     api("/org/settings").catch(() => ({})),
     api("/calendar/events").catch(() => []),
     api("/tasks?assigned_to_me=true").catch(() => []),
@@ -1348,6 +1546,7 @@ async function loadDashboard() {
     api("/notifications").catch(() => []),
     api("/announcements").catch(() => []),
     api("/messages/threads").catch(() => []),
+    api("/xp/status").catch(() => ({ level: state.me?.level || 1, xp_total: state.me?.xp_total || 0, progress: 0, remaining: 0 })),
   ]);
   state.settings = settings;
   renderNav();
@@ -1367,13 +1566,10 @@ async function loadDashboard() {
   $("messageList").innerHTML = threads.length
     ? threads.slice(0, 4).map((thread) => item(thread.title, [threadTypeLabel(thread.thread_type), formatDate(thread.updated_at)].filter(Boolean).join(" · "))).join("")
     : item("No recent messages", "Conversations will appear here once messages are active.");
-  const level = state.me?.level || 1;
-  const xp = state.me?.xp_total || 0;
-  const progress = Math.min(100, xp % 100);
   $("progressCard").innerHTML = `
-    <div class="progress-row"><strong>Level ${escapeHtml(level)}</strong><span>${escapeHtml(xp)} XP</span></div>
-    <div class="progress-track"><span style="width: ${progress}%"></span></div>
-    <p>${100 - progress} XP to the next level.</p>`;
+    <div class="progress-row"><strong>Level ${escapeHtml(xpStatus.level)}</strong><span>${escapeHtml(xpStatus.xp_total)} XP</span></div>
+    <div class="progress-track"><span style="width: ${xpStatus.progress}%"></span></div>
+    <p>${xpStatus.remaining ? `${escapeHtml(xpStatus.remaining)} XP to the next level.` : "Highest configured level reached."}</p>`;
   $("contactList").innerHTML = users.length
     ? users.slice(0, 8).map((user) => item(user.display_name, `${user.member_type} · ${user.account_status}`)).join("")
     : item("No members yet", "Create member accounts when people need access.");
@@ -1396,13 +1592,12 @@ async function boot() {
   try {
     state.me = await api("/auth/me");
     setAuthenticatedUi(true);
-    $("welcome").textContent = `Welcome, ${state.me.display_name}`;
-    $("avatar").textContent = state.me.display_name.slice(0, 1).toUpperCase();
-    $("levelLabel").textContent = `Level ${state.me.level} · ${state.me.xp_total} XP`;
-    $("xpFill").style.width = `${Math.min(100, state.me.xp_total % 100)}%`;
+    await refreshXpDisplay();
     $("brandName").textContent = setup.organisation_name || PRODUCT_NAME;
     document.title = setup.organisation_name || PRODUCT_NAME;
-    await renderModule(state.activeModule || "dashboard");
+    await refreshNotificationPreview();
+    if (window.location.hash) await navigateFromHash();
+    else await renderModule(state.activeModule || "dashboard");
   } catch (error) {
     resetAuth();
   }
@@ -1415,8 +1610,18 @@ $("refresh").addEventListener("click", () => {
 });
 $("settingsButton").addEventListener("click", () => renderModule("settings").catch((error) => toast(error.message)));
 $("helpButton").addEventListener("click", () => renderModule("help").catch((error) => toast(error.message)));
-$("notificationButton").addEventListener("click", () => renderModule("notifications").catch((error) => toast(error.message)));
-$("floatingMessages").addEventListener("click", () => renderModule("messages").catch((error) => toast(error.message)));
+$("notificationButton").addEventListener("click", async () => {
+  if (!requireSession()) return;
+  state.notificationOpen = !state.notificationOpen;
+  await refreshNotificationPreview();
+  $("notificationPopover").classList.toggle("hidden", !state.notificationOpen);
+});
+$("floatingMessages").addEventListener("click", async () => {
+  if (!requireSession()) return;
+  state.floatingMessagesOpen = !state.floatingMessagesOpen;
+  if (state.floatingMessagesOpen) await refreshFloatingMessages();
+  $("floatingMessagePanel").classList.toggle("hidden", !state.floatingMessagesOpen);
+});
 $("avatar").addEventListener("click", () => {
   if (!requireSession()) return;
   resetAuth();
@@ -1431,12 +1636,67 @@ $("search").addEventListener("input", (event) => {
 });
 
 $("moduleContent").addEventListener("input", (event) => {
+  const taskPersonSearch = event.target.closest("[data-task-person-search]");
+  if (taskPersonSearch) {
+    const suggestions = $("moduleContent").querySelector("[data-task-person-suggestions]");
+    renderPersonSuggestions(suggestions, taskPersonSearch.value, state.data.users || [], "data-add-task-assignee", state.taskAssigneeIds);
+    return;
+  }
+  const messagePersonSearch = event.target.closest("[data-message-person-search]");
+  if (messagePersonSearch) {
+    const suggestions = $("moduleContent").querySelector("[data-message-person-suggestions]");
+    renderPersonSuggestions(suggestions, messagePersonSearch.value, state.data.users || [], "data-add-message-recipient", state.messageRecipientIds);
+    return;
+  }
   const search = event.target.closest("[data-conversation-search]");
   if (!search) return;
   const needle = search.value.trim().toLowerCase();
   for (const row of document.querySelectorAll(".conversation-row")) {
     row.style.display = !needle || row.textContent.toLowerCase().includes(needle) ? "" : "none";
   }
+});
+
+$("floatingMessagePanel").addEventListener("input", (event) => {
+  const search = event.target.closest("[data-floating-message-search]");
+  if (!search) return;
+  const needle = search.value.trim().toLowerCase();
+  for (const row of $("floatingMessagePanel").querySelectorAll("[data-floating-thread-id]")) {
+    row.style.display = !needle || row.textContent.toLowerCase().includes(needle) ? "" : "none";
+  }
+});
+
+$("notificationPopover").addEventListener("click", (event) => {
+  const openButton = event.target.closest("button[data-open-notification]");
+  if (openButton) {
+    openNotification(openButton.dataset.openNotification, openButton.dataset.targetUrl).catch((error) => toast(error.message));
+    return;
+  }
+  if (event.target.closest("button[data-view-all-notifications]")) {
+    state.notificationOpen = false;
+    $("notificationPopover").classList.add("hidden");
+    renderModule("notifications").catch((error) => toast(error.message));
+  }
+});
+
+$("floatingMessagePanel").addEventListener("click", (event) => {
+  if (event.target.closest("button[data-open-message-module]")) {
+    state.floatingMessagesOpen = false;
+    $("floatingMessagePanel").classList.add("hidden");
+    renderModule("messages").catch((error) => toast(error.message));
+    return;
+  }
+  const threadButton = event.target.closest("button[data-floating-thread-id]");
+  if (!threadButton) return;
+  state.selectedThreadId = threadButton.dataset.floatingThreadId;
+  state.messagePanel = "thread";
+  state.floatingMessagesOpen = false;
+  $("floatingMessagePanel").classList.add("hidden");
+  window.location.hash = `messages/${state.selectedThreadId}`;
+  renderModule("messages").catch((error) => toast(error.message));
+});
+
+window.addEventListener("hashchange", () => {
+  if (state.me) navigateFromHash().catch((error) => toast(error.message));
 });
 
 $("nav").addEventListener("click", (event) => {
@@ -1466,20 +1726,99 @@ $("moduleContent").addEventListener("click", (event) => {
   const panelButton = event.target.closest("button[data-task-panel]");
   if (panelButton) {
     state.taskPanel = panelButton.dataset.taskPanel;
+    if (state.taskPanel === "create") {
+      state.taskAssigneeIds = [];
+      state.taskAssignmentGroups = [];
+    } else if (state.taskPanel === "edit") {
+      const selected = (state.data.tasks || []).find((task) => task.id === state.selectedTaskId);
+      state.taskAssigneeIds = [...(selected?.assignee_ids || (selected?.assigned_to_id ? [selected.assigned_to_id] : []))];
+      state.taskAssignmentGroups = [];
+    }
     renderTasksModule().catch((error) => toast(error.message));
+    return;
+  }
+  const addAssigneeButton = event.target.closest("button[data-add-task-assignee]");
+  if (addAssigneeButton) {
+    if (!state.taskAssigneeIds.includes(addAssigneeButton.dataset.addTaskAssignee)) state.taskAssigneeIds.push(addAssigneeButton.dataset.addTaskAssignee);
+    refreshTaskAssignmentPickerView();
+    return;
+  }
+  const removeAssigneeButton = event.target.closest("button[data-remove-task-assignee]");
+  if (removeAssigneeButton) {
+    state.taskAssigneeIds = state.taskAssigneeIds.filter((id) => id !== removeAssigneeButton.dataset.removeTaskAssignee);
+    refreshTaskAssignmentPickerView();
+    return;
+  }
+  const addGroupButton = event.target.closest("button[data-add-task-group]");
+  if (addGroupButton) {
+    const select = $("moduleContent").querySelector("[data-task-group-select]");
+    const [source_type, source_id] = String(select?.value || "").split(":");
+    if (source_type && source_id && !state.taskAssignmentGroups.some((row) => row.source_type === source_type && row.source_id === source_id)) {
+      state.taskAssignmentGroups.push({ source_type, source_id });
+      refreshTaskAssignmentPickerView();
+    }
+    return;
+  }
+  const removeGroupButton = event.target.closest("button[data-remove-task-group]");
+  if (removeGroupButton) {
+    const [sourceType, sourceId] = removeGroupButton.dataset.removeTaskGroup.split(":");
+    state.taskAssignmentGroups = state.taskAssignmentGroups.filter((row) => row.source_type !== sourceType || row.source_id !== sourceId);
+    refreshTaskAssignmentPickerView();
     return;
   }
   const messagePanelButton = event.target.closest("button[data-message-panel]");
   if (messagePanelButton) {
     state.messagePanel = messagePanelButton.dataset.messagePanel;
+    if (state.messagePanel === "new") state.messageRecipientIds = [];
     renderMessagesModule().catch((error) => toast(error.message));
+    return;
+  }
+  if (event.target.closest("button[data-message-back]")) {
+    state.messagePanel = "list";
+    renderMessagesModule().catch((error) => toast(error.message));
+    return;
+  }
+  const addMessageRecipient = event.target.closest("button[data-add-message-recipient]");
+  if (addMessageRecipient) {
+    if (!state.messageRecipientIds.includes(addMessageRecipient.dataset.addMessageRecipient)) state.messageRecipientIds.push(addMessageRecipient.dataset.addMessageRecipient);
+    refreshMessageRecipientPickerView();
+    return;
+  }
+  const removeMessageRecipient = event.target.closest("button[data-remove-message-recipient]");
+  if (removeMessageRecipient) {
+    state.messageRecipientIds = state.messageRecipientIds.filter((id) => id !== removeMessageRecipient.dataset.removeMessageRecipient);
+    refreshMessageRecipientPickerView();
     return;
   }
   const threadButton = event.target.closest("button[data-thread-id]");
   if (threadButton) {
     state.selectedThreadId = threadButton.dataset.threadId;
     state.messagePanel = "thread";
-    renderMessagesModule().catch((error) => toast(error.message));
+    window.location.hash = `messages/${state.selectedThreadId}`;
+    api(`/messages/threads/${state.selectedThreadId}/read`, { method: "POST" }).catch(() => {}).finally(() => renderMessagesModule().catch((error) => toast(error.message)));
+    return;
+  }
+  const notificationFilter = event.target.closest("button[data-notification-filter]");
+  if (notificationFilter) {
+    state.notificationFilter = notificationFilter.dataset.notificationFilter;
+    renderNotificationsModule().catch((error) => toast(error.message));
+    return;
+  }
+  const openNotificationButton = event.target.closest("button[data-open-notification]");
+  if (openNotificationButton) {
+    openNotification(openNotificationButton.dataset.openNotification, openNotificationButton.dataset.targetUrl).catch((error) => toast(error.message));
+    return;
+  }
+  const readNotificationButton = event.target.closest("button[data-read-notification]");
+  if (readNotificationButton) {
+    markNotificationRead(readNotificationButton.dataset.readNotification).then(renderNotificationsModule).catch((error) => toast(error.message));
+    return;
+  }
+  if (event.target.closest("button[data-mark-all-notifications]")) {
+    api("/notifications/read-all", { method: "POST" }).then(async () => {
+      await refreshNotificationPreview();
+      await renderNotificationsModule();
+    }).catch((error) => toast(error.message));
     return;
   }
   const helpButton = event.target.closest("button[data-help-id]");
@@ -1498,8 +1837,9 @@ $("moduleContent").addEventListener("click", (event) => {
   const statusButton = event.target.closest("button[data-task-status-id]");
   if (statusButton) {
     api(`/tasks/${statusButton.dataset.taskStatusId}/status?status=${encodeURIComponent(statusButton.dataset.taskStatus)}`, { method: "PATCH" })
-      .then(() => {
+      .then(async () => {
         toast(statusButton.dataset.taskStatus === "Done" ? "Task marked done" : "Task reopened");
+        await Promise.all([refreshXpDisplay(), refreshNotificationPreview()]);
         return renderTasksModule();
       })
       .catch((error) => toast(error.message));
@@ -1540,6 +1880,7 @@ $("moduleContent").addEventListener("submit", async (event) => {
       await api(`/messages/threads/${form.dataset.messageThreadId}/messages`, { method: "POST", body: JSON.stringify({ body: payload.body }) });
       toast("Message sent");
       form.reset();
+      await refreshNotificationPreview();
       await renderMessagesModule();
     } catch (error) {
       toast(error.message);
@@ -1548,8 +1889,14 @@ $("moduleContent").addEventListener("submit", async (event) => {
   }
   if (form.hasAttribute("data-new-conversation")) {
     const payload = payloadFromForm(form);
+    if (!state.messageRecipientIds.length) {
+      toast("Choose at least one recipient");
+      return;
+    }
     const firstMessage = payload.first_message;
     delete payload.first_message;
+    payload.participant_ids = [...state.messageRecipientIds];
+    if (!payload.title) payload.title = userNames(state.messageRecipientIds);
     try {
       const thread = await api("/messages/threads", { method: "POST", body: JSON.stringify(payload) });
       if (firstMessage) {
@@ -1557,7 +1904,10 @@ $("moduleContent").addEventListener("submit", async (event) => {
       }
       state.selectedThreadId = thread.id;
       state.messagePanel = "thread";
+      window.location.hash = `messages/${thread.id}`;
+      state.messageRecipientIds = [];
       toast("Conversation started");
+      await refreshNotificationPreview();
       await renderMessagesModule();
     } catch (error) {
       toast(error.message);
@@ -1583,6 +1933,10 @@ $("moduleContent").addEventListener("submit", async (event) => {
     return;
   }
   const payload = payloadFromForm(form);
+  if (form.dataset.module === "tasks") {
+    payload.assignee_ids = [...state.taskAssigneeIds];
+    payload.assignment_groups = [...state.taskAssignmentGroups];
+  }
   const endpoint = form.dataset.createEndpoint || form.dataset.updateEndpoint;
   const method = form.dataset.updateEndpoint ? "PATCH" : "POST";
   const options = { method, body: JSON.stringify(payload) };
@@ -1594,6 +1948,9 @@ $("moduleContent").addEventListener("submit", async (event) => {
     if (form.dataset.module === "tasks" && saved?.id) {
       state.selectedTaskId = saved.id;
       state.taskPanel = "view";
+      state.taskAssigneeIds = [];
+      state.taskAssignmentGroups = [];
+      await refreshNotificationPreview();
     }
     toast("Saved");
     form.reset();
