@@ -18,3 +18,5 @@ jobs:
         run: python -m py_compile $(find app -name '*.py')
       - name: Run API smoke tests
         run: python -m pytest -q
+      - name: Build application image
+        run: docker build --tag crewops:ci .
